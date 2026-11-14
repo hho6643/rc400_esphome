@@ -15,9 +15,6 @@ esp32:
 logger:
   level: DEBUG
 
-api:
-  encryption:
-    key: "jk2iJaK1zPyyVmYqzcOvltQup3K2pTvHX/pTahYKb78="
 
 ota:
   - platform: esphome
