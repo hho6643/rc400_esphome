@@ -33,6 +33,11 @@ globals:
     restore_value: no
     initial_value: '0'
 
+  - id: rc400_saved_thermostat_c
+    type: int
+    restore_value: true
+    initial_value: '22'
+
    
 spi:
   - id: spi_1
@@ -126,8 +131,12 @@ sx126x:
               id(rc400_setpoint).publish_state(NAN);
             } else {
               id(rc400_setpoint).publish_state(x[11]);
+              id(rc400_saved_thermostat_c) = x[11];
+              id(rc400_thermostat_target).publish_state(x[11]);
             }
+
             id(rc400_thermostat_status).publish_state(x[11] != 0);
+            id(rc400_thermostat_control).publish_state(x[11] != 0);
             id(rc400_flame).publish_state(x[12]);
             id(rc400_fireplace_status).publish_state(x[12] > 0);
             id(rc400_cold_climate).publish_state(x[13] != 0);
@@ -204,6 +213,40 @@ switch:
           command: 0x09
           value: 0
 
+  - platform: template
+    name: "Thermostat Control"
+    id: rc400_thermostat_control
+    icon: mdi:thermostat
+    optimistic: false
+
+    turn_on_action:
+      - if:
+          condition:
+            binary_sensor.is_on: rc400_receiving
+          then:
+            - script.execute:
+                id: rc400_send_command
+                command: 0x25
+                value: !lambda |-
+                  return std::max(6, std::min(26, id(rc400_saved_thermostat_c)));
+          else:
+            - logger.log:
+                level: WARN
+                format: "Cannot enable thermostat: broadcasts unavailable"
+
+    turn_off_action:
+      - if:
+          condition:
+            binary_sensor.is_on: rc400_receiving
+          then:
+            - script.execute:
+                id: rc400_send_command
+                command: 0x25
+                value: 0
+          else:
+            - logger.log:
+                level: WARN
+                format: "Cannot disable thermostat: broadcasts unavailable"
 
 button:
   - platform: template
@@ -325,6 +368,35 @@ number:
                 level: WARN
                 format: "Cannot set timer: fireplace is off or status unavailable"
 
+  - platform: template
+    name: "Thermostat Target"
+    id: rc400_thermostat_target
+    icon: mdi:thermometer
+    unit_of_measurement: "°C"
+    device_class: temperature
+    min_value: 6
+    max_value: 26
+    step: 1
+    optimistic: false
+
+    set_action:
+      - lambda: |-
+          id(rc400_saved_thermostat_c) =
+              static_cast<int>(x);
+
+      - if:
+          condition:
+            binary_sensor.is_on: rc400_receiving
+          then:
+            - script.execute:
+                id: rc400_send_command
+                command: 0x25
+                value: !lambda |-
+                  return id(rc400_saved_thermostat_c);
+          else:
+            - logger.log:
+                level: WARN
+                format: "Cannot set thermostat: broadcasts unavailable"
 
 sensor:
 
@@ -430,6 +502,7 @@ script:
                 (command == 0x0A && value >= 1 && value <= 5) ||
                 (command == 0x0B && (value == 0 || value == 1)) ||
                 (command == 0x22 && value >= 0 && value <= 180) ||
+                (command == 0x25 && (value == 0 || (value >= 6 && value <= 26))) ||
                 (command == 0x09 && (value == 0 || value == 1));
           then:
             - logger.log:
@@ -492,6 +565,15 @@ script:
                           packet[16] = 0x01;
                           packet[17] = 0x06;
                           packet[18] = value ? 0x23 : 0x1D;
+                          packet[19] = 0x00;
+
+                        } else if (command == 0x25) {
+                          // Thermostat: 0 = OFF; positive values = setpoint in Celsius
+                          packet[9]  = 0x25;
+                          packet[11] = static_cast<uint8_t>(value);
+                          packet[16] = 0x01;
+                          packet[17] = 0x05;
+                          packet[18] = 0x08;
                           packet[19] = 0x00;
 
                         } else {
