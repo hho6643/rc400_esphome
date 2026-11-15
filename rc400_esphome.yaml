@@ -118,7 +118,6 @@ sx126x:
                 // Thermostat is ON. Broadcast contains Celsius target.
                 id(rc400_setpoint).publish_state(x[11]);
                 id(rc400_saved_thermostat_c) = x[11];
-                id(rc400_thermostat_target).publish_state(x[11]);
 
                 id(rc400_climate).set_mode(
                     climate::CLIMATE_MODE_HEAT);
