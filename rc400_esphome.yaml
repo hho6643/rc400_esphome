@@ -1,9 +1,6 @@
 # Board: XIAO ESP32S# & Wio-SX1262 Kit from Seeed Studio, SKU #113110064
 
-esphome:
-  name: rc400-receiver
-  friendly_name: RC400 Receiver
-  area: Kitchen
+
 
 
 esp32:
@@ -11,21 +8,6 @@ esp32:
   framework:
     type: esp-idf
 
-logger:
-  level: DEBUG
-  
-ota:
-  - platform: esphome
-    encryption:
-    id: ota_esphome_1  
-    
-api:
-  encryption:
-    key: !secret rc400_receiver__encryption_key
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
 
 globals:
   - id: rc400_last_broadcast_ms
