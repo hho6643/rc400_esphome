@@ -69,7 +69,7 @@ sensor:
     accuracy_decimals: 0
 
   - platform: template
-    name: "Fan Level"
+    name: "Fan Speed Setting"
     id: rc400_fan
     accuracy_decimals: 0
 
@@ -135,8 +135,80 @@ binary_sensor:
     id: rc400_receiving
 
   - platform: template
-    name: "Fan Warmup Active"
-    id: rc400_fan_warmup
+    name: "Fan Waiting to Start"
+    id: rc400_fan_waiting
+
+
+
+script:
+  - id: rc400_send_on
+    mode: single
+    then:
+      - logger.log: "RC400: transmitting captured ON frame"
+      - sx126x.send_packet:
+          id: sx126x_1
+          data:
+            - 0x03
+            - 0x00
+            - 0x00
+            - 0xA1
+            - 0xAF
+            - 0x15
+            - 0x57
+            - 0xFE
+            - 0xBD
+            - 0x0A
+            - 0x05
+            - 0x05
+            - 0x00
+            - 0x00
+            - 0x0E
+            - 0x06
+            - 0x02
+            - 0x05
+            - 0x2E
+            - 0x01
+            - 0x00
+            - 0x00
+            - 0x00
+            - 0xD8
+            - 0x2A
+
+  - id: rc400_send_off
+    mode: single
+    then:
+      - logger.log: "RC400: transmitting captured OFF frame"
+      - sx126x.send_packet:
+          id: sx126x_1
+          data:
+            - 0x03
+            - 0x00
+            - 0x00
+            - 0xA1
+            - 0xAF
+            - 0x15
+            - 0x57
+            - 0xFE
+            - 0xBD
+            - 0x0A
+            - 0x05
+            - 0x00
+            - 0x00
+            - 0x00
+            - 0x0E
+            - 0x06
+            - 0x02
+            - 0x05
+            - 0x34
+            - 0x01
+            - 0x00
+            - 0x00
+            - 0x00
+            - 0xD9
+            - 0x2A
+
+
+
 
 interval:
   - interval: 5s
@@ -160,8 +232,8 @@ interval:
             id(rc400_hot).invalidate_state();
             id(rc400_fireplace_status).invalidate_state();
             id(rc400_timer_is_set).invalidate_state();
-            id(rc400_fan_warmup).invalidate_state();
             id(rc400_thermostat_status).invalidate_state();
+            id(rc400_fan_waiting).invalidate_state();
           }
 
 switch:
@@ -206,8 +278,6 @@ sx126x:
     rf_switch: false
     tcxo_voltage: 2_4V
     tcxo_delay: 5ms
-
-
 
     on_packet:
       then:
@@ -273,11 +343,17 @@ sx126x:
             id(rc400_fan).publish_state(x[14]);
             id(rc400_hot).publish_state(x[18] != 0);
             id(rc400_operating_raw).publish_state(x[19]);
-            id(rc400_fan_warmup).publish_state(x[19] == 0x06);
             id(rc400_timer).publish_state(x[20]);
             id(rc400_timer_is_set).publish_state(x[20] != 0);
             id(rc400_rssi).publish_state(rssi);
             id(rc400_receiving).publish_state(true);
+
+            // Fan startup wait: supported by this capture.
+            id(rc400_fan_waiting).publish_state(
+                x[19] == 0x06 && x[14] > 0
+            );
+
+
 
             ESP_LOGI("rc400",
                      "Broadcast: flame=%u fan=%u "
