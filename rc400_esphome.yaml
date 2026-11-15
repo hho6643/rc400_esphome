@@ -377,6 +377,7 @@ number:
     min_value: 6
     max_value: 26
     step: 1
+    mode: box
     optimistic: false
 
     set_action:
