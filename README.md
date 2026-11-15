@@ -6,8 +6,10 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 * I didn't want to pay $250 for the Intellifire WiFi controller
 * It seemed like a fun home automation projected.
 
-# What will it send
+# What it does send
 * Fireplace on / off
+
+# What it will send
 * Flame level adjustment
 * Fan speed adjustment
 * Timer on / off & timer setting
@@ -15,12 +17,21 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 * Thermostat on / off  & temperature set point
 * Room temperature broadcast
 
-# What will it receive
-* Current fan speed from fireplace
+# What it does receive
+* Current fireplace on / off status
+* Current Cold Climate Pilot light status
+* Current fan speed from fireplace 
+* "3 min fan delay for warmup" message from fireplace
 * Current flame height from fireplace
+* RC400 broadcast room temperature
+* Thermostat setpoint
+* Thermostat on / on status
+* Timer status
 * Remaining time on timer
 * "HOT" status from fireplace
-* "3 min fan delay for warmup" message from fireplace
+
+# What it will receive
+* Fan status (still a little buggy)
 
 # What's been used
 * Heat & Glo I35 Natural Gas Insert 
