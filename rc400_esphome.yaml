@@ -1,0 +1,520 @@
+# Board: XIAO ESP32S# & Wio-SX1262 Kit from Seeed Studio, SKU #113110064
+
+esphome:
+  name: rc400-receiver
+  friendly_name: RC400 Receiver
+  area: Kitchen
+
+
+esp32:
+  board: seeed_xiao_esp32s3
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  
+ota:
+  - platform: esphome
+    encryption:
+    id: ota_esphome_1  
+    
+api:
+  encryption:
+    key: !secret rc400_receiver__encryption_key
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+globals:
+  - id: rc400_last_broadcast_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+switch:
+  - platform: gpio
+    id: rc400_antenna_switch
+    pin: GPIO38
+    restore_mode: ALWAYS_ON
+    internal: true  
+    
+spi:
+  - id: spi_1
+    clk_pin: GPIO7
+    miso_pin: GPIO8
+    mosi_pin: GPIO9
+
+sx126x:
+  - id: sx126x_1
+    spi_id: spi_1
+    hw_version: sx1262
+    busy_pin: GPIO40
+    cs_pin: GPIO41
+    dio1_pin: GPIO39
+    rst_pin: GPIO42    
+   
+    modulation: FSK
+    frequency: 913.2MHz
+    bitrate: 25000
+    deviation: 50kHz
+    bandwidth: 234_3kHz
+  
+    sync_value: [0x2D, 0xD4]
+    payload_length: 25
+    preamble_size: 8
+    preamble_detect: 2
+  
+    crc_enable: false
+    whitening_enable: false
+    rx_start: true
+
+
+    # Requires board-specific confirmation:
+    rf_switch: false
+    tcxo_voltage: 2_4V
+    tcxo_delay: 5ms
+
+    on_packet:
+      then:
+        - lambda: |-
+            if (x.size() != 25) {
+              ESP_LOGW("rc400", "Wrong packet length: %u",
+                       (unsigned) x.size());
+              return;
+            }
+
+            // Validate terminator and RC400 checksum.
+            if (x[24] != 0x2A) {
+              ESP_LOGW("rc400", "Invalid terminator");
+              return;
+            }
+
+            uint32_t sum = 0x2D + 0xD4;
+            for (size_t i = 0; i < 23; i++) {
+              sum += x[i];
+            }
+            const uint8_t expected =
+                static_cast<uint8_t>(sum - 1);
+
+            if (x[23] != expected) {
+              ESP_LOGW("rc400", "Checksum mismatch");
+              return;
+            }
+
+            // Room temperature report transmitted by the RC400 remote.
+            // Message type 0x26, temperature in degrees Celsius at x[11].
+            if (x[9] == 0x26 &&
+                x[1] == 0x00 && x[2] == 0x00 &&
+                x[3] == 0xA1 && x[4] == 0xAF &&
+                x[5] == 0x15 && x[6] == 0x57 &&
+                x[7] == 0xFE && x[8] == 0xBD) {
+
+              id(rc400_remote_room_temperature).publish_state(x[11]);
+
+              ESP_LOGI("rc400", "Remote room temperature: %u°C", x[11]);
+              return;
+            }
+
+            // Fireplace source address and broadcast destination.
+            if (x[1] != 0x15 || x[2] != 0x57 ||
+                x[3] != 0xFE || x[4] != 0xBD ||
+                x[5] != 0xFF || x[6] != 0xFF ||
+                x[7] != 0xFF || x[8] != 0xFF ||
+                x[9] != 0x9A || x[10] != 0x0E) {
+              return;
+            }
+
+            id(rc400_last_broadcast_ms) = millis();
+
+            if (x[11] == 0) {
+              id(rc400_setpoint).publish_state(NAN);
+            } else {
+              id(rc400_setpoint).publish_state(x[11]);
+            }
+            id(rc400_thermostat_status).publish_state(x[11] != 0);
+            id(rc400_flame).publish_state(x[12]);
+            id(rc400_fireplace_status).publish_state(x[12] > 0);
+            id(rc400_cold_climate).publish_state(x[13] != 0);
+            id(rc400_fan).publish_state(x[14]);
+            id(rc400_hot).publish_state(x[18] != 0);
+            id(rc400_operating_raw).publish_state(x[19]);
+            id(rc400_timer).publish_state(x[20]);
+            id(rc400_timer_is_set).publish_state(x[20] != 0);
+            id(rc400_timer_control).publish_state(x[20]);
+            id(rc400_rssi).publish_state(rssi);
+            id(rc400_receiving).publish_state(true);
+
+
+            // Fan startup wait: supported by this capture.
+            id(rc400_fan_waiting).publish_state(
+                x[19] == 0x06 && x[14] > 0
+            );
+
+            if (x[14] <= 4) {
+              const char *fan_options[] = {
+                "Off", "Level 1", "Level 2", "Level 3", "Level 4"
+              };
+
+              id(rc400_fan_control).publish_state(fan_options[x[14]]);
+            }
+
+              if (x[12] >= 1 && x[12] <= 5) {
+                const char *flame_options[] = {
+                  "Level 1", "Level 2", "Level 3",
+                  "Level 4", "Level 5"
+                };
+
+                id(rc400_flame_control).publish_state(
+                  flame_options[x[12] - 1]
+                );
+              }
+
+
+
+            ESP_LOGI("rc400",
+                     "Broadcast: flame=%u fan=%u "
+                     "setpoint=%uC cold=%u hot=%u "
+                     "timer=%u status=0x%02X RSSI=%.1f",
+                     x[12], x[14], x[11], x[13],
+                     x[18], x[20], x[19], rssi);
+
+
+# Home Assistant specific configuration for the RC400. 
+
+button:
+  - platform: template
+    name: "Fireplace Power"
+    id: rc400_power_button
+    icon: mdi:power
+    on_press:
+      - if:
+          condition:
+            lambda: |-
+              return id(rc400_receiving).state &&
+                     id(rc400_fireplace_status).has_state();
+          then:
+            - script.execute:
+                id: rc400_send_command
+                command: 0x0B
+                value: !lambda |-
+                  return id(rc400_fireplace_status).state ? 0 : 1;
+          else:
+            - logger.log:
+                level: WARN
+                format: "Cannot toggle: fireplace status unavailable"
+
+select:
+  - platform: template
+    name: "Fan Speed Control"
+    id: rc400_fan_control
+    icon: mdi:fan
+    optimistic: false
+    options:
+      - "Off"
+      - "Level 1"
+      - "Level 2"
+      - "Level 3"
+      - "Level 4"
+
+    set_action:
+      - if:
+          condition:
+            binary_sensor.is_on: rc400_receiving
+          then:
+            - script.execute:
+                id: rc400_send_command
+                command: 0x10
+                value: !lambda |-
+                  if (x == "Off") return 0;
+                  if (x == "Level 1") return 1;
+                  if (x == "Level 2") return 2;
+                  if (x == "Level 3") return 3;
+                  if (x == "Level 4") return 4;
+                  return -1;
+          else:
+            - logger.log:
+                level: WARN
+                format: "Cannot set fan: fireplace broadcasts unavailable"
+
+  - platform: template
+    name: "Flame Level Control"
+    id: rc400_flame_control
+    icon: mdi:fire
+    optimistic: false
+    options:
+      - "Level 1"
+      - "Level 2"
+      - "Level 3"
+      - "Level 4"
+      - "Level 5"
+
+    set_action:
+      - if:
+          condition:
+            lambda: |-
+              return id(rc400_receiving).state &&
+                     id(rc400_fireplace_status).has_state() &&
+                     id(rc400_fireplace_status).state;
+          then:
+            - script.execute:
+                id: rc400_send_command
+                command: 0x0A
+                value: !lambda |-
+                  if (x == "Level 1") return 1;
+                  if (x == "Level 2") return 2;
+                  if (x == "Level 3") return 3;
+                  if (x == "Level 4") return 4;
+                  if (x == "Level 5") return 5;
+                  return -1;
+          else:
+            - logger.log:
+                level: WARN
+                format: "Cannot set flame: fireplace is off or status unavailable"
+
+number:
+  - platform: template
+    name: "Fireplace Timer"
+    id: rc400_timer_control
+    icon: mdi:timer-outline
+    unit_of_measurement: "min"
+    min_value: 0
+    max_value: 180
+    step: 1
+    mode: box
+    optimistic: false
+
+    set_action:
+      - if:
+          condition:
+            lambda: |-
+              return id(rc400_receiving).state &&
+                     id(rc400_fireplace_status).has_state() &&
+                     id(rc400_fireplace_status).state;
+          then:
+            - script.execute:
+                id: rc400_send_command
+                command: 0x22
+                value: !lambda |-
+                  return static_cast<int>(x);
+          else:
+            - logger.log:
+                level: WARN
+                format: "Cannot set timer: fireplace is off or status unavailable"
+
+
+sensor:
+
+  - platform: template
+    name: "Flame Level"
+    id: rc400_flame
+    icon: mdi:fire
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Fan Speed Setting"
+    id: rc400_fan
+    icon: mdi:fan
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Thermostat Setpoint"
+    id: rc400_setpoint
+    icon: mdi:thermostat
+    unit_of_measurement: "°C"
+    device_class: temperature
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Remote Room Temperature"
+    id: rc400_remote_room_temperature
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    icon: mdi:thermometer
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Timer Remaining"
+    id: rc400_timer
+    unit_of_measurement: "min"
+    icon: mdi:timer
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Operating Status Raw"
+    id: rc400_operating_raw
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+  - platform: template
+    name: "RSSI"
+    id: rc400_rssi
+    unit_of_measurement: "dBm"
+    device_class: signal_strength
+    entity_category: diagnostic
+    icon: mdi:wifi-strength-1
+    accuracy_decimals: 1
+
+
+binary_sensor:
+  - platform: template
+    name: "Thermostat Status"
+    id: rc400_thermostat_status
+
+  - platform: template
+    name: "Cold Climate Pilot"
+    id: rc400_cold_climate
+    icon: mdi:candle
+
+  - platform: template
+    name: "Fireplace Status"
+    id: rc400_fireplace_status
+    icon: mdi:fireplace
+
+  - platform: template
+    name: "Unit is Hot"
+    id: rc400_hot
+    icon: mdi:thermometer-alert
+
+  - platform: template
+    name: "Timer Is Set"
+    id: rc400_timer_is_set
+    icon: mdi:timer 
+
+
+  - platform: template
+    name: "Receiving Broadcasts"
+    id: rc400_receiving
+
+  - platform: template
+    name: "Fan Waiting to Start"
+    id: rc400_fan_waiting
+    icon: mdi:fan-alert
+
+script:
+  - id: rc400_send_command
+    mode: queued
+    parameters:
+      command: int
+      value: int
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return
+                (command == 0x10 && value >= 0 && value <= 4) ||
+                (command == 0x0A && value >= 1 && value <= 5) ||
+                (command == 0x0B && (value == 0 || value == 1)) ||
+                (command == 0x22 && value >= 0 && value <= 180);
+          then:
+            - logger.log:
+                format: "RC400: Command 0x%02X, value %d"
+                args: ['command', 'value']
+
+             - repeat:
+                count: 2
+                then:
+
+ 
+                  - sx126x.send_packet:
+                      id: sx126x_1
+                      data: !lambda |-
+                        std::vector<uint8_t> packet = {
+                          0x03,
+                          0x00, 0x00, 0xA1, 0xAF,
+                          0x15, 0x57, 0xFE, 0xBD,
+                          0x00, 0x05, 0x00,
+                          0x00, 0x00,
+                          0x0E, 0x06,
+                          0x00, 0x00, 0x00, 0x00,
+                          0x00, 0x00, 0x00,
+                          0x00,
+                          0x2A
+                        };
+
+                        if (command == 0x10) {
+                          // Fan: Off or Levels 1-4
+                          packet[9]  = 0x10;
+                          packet[11] = value;
+                          packet[16] = 0x01;
+                          packet[17] = 0x05;
+                          packet[18] = 0x11;
+                          packet[19] = 0x00;
+
+                        } else if (command == 0x0A) {
+                          // Flame: Levels 1-5
+                          packet[9]  = 0x0A;
+                          packet[11] = value;
+                          packet[16] = 0x02;
+                          packet[17] = 0x12;
+                          packet[18] = 0x3B;
+                          packet[19] = 0x01;
+
+                        } else if (command == 0x22) {
+                          // Timer: value is the requested duration in minutes.
+                          // 0 disables the timer.
+                          packet[9]  = 0x22;
+                          packet[11] = static_cast<uint8_t>(value);
+                          packet[16] = 0x01;
+                          packet[17] = 0x05;
+                          packet[18] = 0x31;
+                          packet[19] = 0x00;
+
+                        } else {
+                          // Power: value 1 = ON, 0 = OFF
+                          // Both use RC400 command 0x0A.
+                          packet[9]  = 0x0A;
+                          packet[11] = value ? 0x05 : 0x00;
+                          packet[16] = 0x02;
+                          packet[17] = 0x05;
+                          packet[18] = value ? 0x2E : 0x34;
+                          packet[19] = 0x01;
+                        }
+
+                        // RC400 checksum
+                        uint32_t sum = 0x2D + 0xD4;
+
+                        for (size_t i = 0; i < 23; i++) {
+                          sum += packet[i];
+                        }
+
+                        packet[23] = static_cast<uint8_t>(
+                          (sum - 1) & 0xFF
+                        );
+
+                        return packet;
+                  - delay: 60ms
+          else:
+            - logger.log:
+                level: WARN
+                format: "RC400: Invalid command 0x%02X, value %d"
+                args: ['command', 'value']
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          const bool fresh =
+              id(rc400_last_broadcast_ms) != 0 &&
+              (uint32_t)(millis() -
+              id(rc400_last_broadcast_ms)) < 15000;
+
+          id(rc400_receiving).publish_state(fresh);
+
+          if (!fresh) {
+            id(rc400_flame).publish_state(NAN);
+            id(rc400_fan).publish_state(NAN);
+            id(rc400_setpoint).publish_state(NAN);
+            id(rc400_timer).publish_state(NAN);
+            id(rc400_operating_raw).publish_state(NAN);
+            id(rc400_rssi).publish_state(NAN);
+            id(rc400_cold_climate).invalidate_state();
+            id(rc400_hot).invalidate_state();
+            id(rc400_fireplace_status).invalidate_state();
+            id(rc400_timer_is_set).invalidate_state();
+            id(rc400_thermostat_status).invalidate_state();
+            id(rc400_fan_waiting).invalidate_state();
+          }
+

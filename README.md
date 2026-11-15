@@ -10,9 +10,9 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 * Fireplace on / off
 * Flame level adjustment
 * Fan speed adjustment
+* Timer on / off & timer setting
 
 # What it will send
-* Timer on / off & timer setting
 * Cold climate control on / off
 * Thermostat on / off  & temperature set point
 * Room temperature broadcast
