@@ -108,7 +108,12 @@ sensor:
     entity_category: diagnostic
     accuracy_decimals: 1
 
+
 binary_sensor:
+  - platform: template
+    name: "Thermostat Status"
+    id: rc400_thermostat_status
+
   - platform: template
     name: "Cold Climate Pilot"
     id: rc400_cold_climate
@@ -116,12 +121,6 @@ binary_sensor:
   - platform: template
     name: "Fireplace Status"
     id: rc400_fireplace_status
-
-binary_sensor:
-  - platform: template
-    name: "Thermostat Status"
-    id: rc400_thermostat_status
-
 
   - platform: template
     name: "Unit is Hot"
