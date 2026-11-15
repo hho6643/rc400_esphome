@@ -13,7 +13,11 @@ esp32:
 
 logger:
   level: DEBUG
-  
+
+api:
+  encryption:
+    key: "jk2iJaK1zPyyVmYqzcOvltQup3K2pTvHX/pTahYKb78="
+
 ota:
   - platform: esphome
     encryption:
@@ -213,79 +217,7 @@ sx126x:
     on_packet:
       then:
         - lambda: |-
-            if (x.size() != 25) {
-              ESP_LOGW("rc400", "Wrong packet length: %u",
-                       (unsigned) x.size());
-              return;
-            }
-
-            // Validate terminator and RC400 checksum.
-            if (x[24] != 0x2A) {
-              ESP_LOGW("rc400", "Invalid terminator");
-              return;
-            }
-
-            uint32_t sum = 0x2D + 0xD4;
-            for (size_t i = 0; i < 23; i++) {
-              sum += x[i];
-            }
-            const uint8_t expected =
-                static_cast<uint8_t>(sum - 1);
-
-            if (x[23] != expected) {
-              ESP_LOGW("rc400", "Checksum mismatch");
-              return;
-            }
-
-            // Room temperature report transmitted by the RC400 remote.
-            // Message type 0x26, temperature in degrees Celsius at x[11].
-            if (x[9] == 0x26 &&
-                x[1] == 0x00 && x[2] == 0x00 &&
-                x[3] == 0xA1 && x[4] == 0xAF &&
-                x[5] == 0x15 && x[6] == 0x57 &&
-                x[7] == 0xFE && x[8] == 0xBD) {
-
-              id(rc400_remote_room_temperature).publish_state(x[11]);
-
-              ESP_LOGI("rc400", "Remote room temperature: %u°C", x[11]);
-              return;
-            }
-
-            // Fireplace source address and broadcast destination.
-            if (x[1] != 0x15 || x[2] != 0x57 ||
-                x[3] != 0xFE || x[4] != 0xBD ||
-                x[5] != 0xFF || x[6] != 0xFF ||
-                x[7] != 0xFF || x[8] != 0xFF ||
-                x[9] != 0x9A || x[10] != 0x0E) {
-              return;
-            }
-
-            id(rc400_last_broadcast_ms) = millis();
-
-            if (x[11] == 0) {
-              id(rc400_setpoint).publish_state(NAN);
-            } else {
-              id(rc400_setpoint).publish_state(x[11]);
-            }
-            id(rc400_thermostat_status).publish_state(x[11] != 0);
-            id(rc400_flame).publish_state(x[12]);
-            id(rc400_fireplace_status).publish_state(x[12] > 0);
-            id(rc400_cold_climate).publish_state(x[13] != 0);
-            id(rc400_fan).publish_state(x[14]);
-            id(rc400_hot).publish_state(x[18] != 0);
-            id(rc400_operating_raw).publish_state(x[19]);
-            id(rc400_fan_warmup).publish_state(x[19] == 0x06);
-            id(rc400_timer).publish_state(x[20]);
-            id(rc400_timer_is_set).publish_state(x[20] != 0);
-            id(rc400_rssi).publish_state(rssi);
-            id(rc400_receiving).publish_state(true);
-
-            ESP_LOGI("rc400",
-                     "Broadcast: flame=%u fan=%u "
-                     "setpoint=%uC cold=%u hot=%u "
-                     "timer=%u status=0x%02X RSSI=%.1f",
-                     x[12], x[14], x[11], x[13],
-                     x[18], x[20], x[19], rssi);
-
-
-
+            ESP_LOGI("rc400", "Received %u bytes, RSSI %.1f dBm: %s",
+                     (unsigned int) x.size(),
+                     rssi,
+                     format_hex(x).c_str());
