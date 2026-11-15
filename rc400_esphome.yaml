@@ -1,7 +1,4 @@
-# Board: XIAO ESP32S# & Wio-SX1262 Kit from Seeed Studio, SKU #113110064
-
-
-
+# Default board: XIAO ESP32S# & Wio-SX1262 Kit from Seeed Studio, SKU #113110064
 
 esp32:
   board: seeed_xiao_esp32s3
