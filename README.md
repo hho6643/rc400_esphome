@@ -15,7 +15,7 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 * Thermostat on / off  & temperature set point
 
 # What it will send
-* Room temperature broadcast
+* Room temperature broadcast from something that isn't the RC400
 
 # What it does receive
 * Current fireplace on / off status

@@ -128,6 +128,9 @@ sx126x:
             // Publish updated climate state to Home Assistant.
             id(rc400_climate).publish_state();
 
+            // Update the read-only thermostat status sensor.
+            id(rc400_thermostat_status).publish_state(x[11] != 0);
+
             id(rc400_flame).publish_state(x[12]);
             id(rc400_fireplace_status).publish_state(x[12] > 0);
             id(rc400_cold_climate).publish_state(x[13] != 0);
