@@ -106,16 +106,36 @@ sx126x:
 
             id(rc400_last_broadcast_ms) = millis();
 
-            if (x[11] == 0) {
-              id(rc400_setpoint).publish_state(NAN);
-            } else {
-              id(rc400_setpoint).publish_state(x[11]);
-              id(rc400_saved_thermostat_c) = x[11];
-              id(rc400_thermostat_target).publish_state(x[11]);
-            }
 
-            id(rc400_thermostat_status).publish_state(x[11] != 0);
-            id(rc400_thermostat_control).publish_state(x[11] != 0);
+              if (x[11] == 0) {
+                // Thermostat is OFF. Preserve the last target.
+                id(rc400_setpoint).publish_state(NAN);
+
+                id(rc400_climate).set_mode(
+                    climate::CLIMATE_MODE_OFF);
+
+              } else {
+                // Thermostat is ON. Broadcast contains Celsius target.
+                id(rc400_setpoint).publish_state(x[11]);
+                id(rc400_saved_thermostat_c) = x[11];
+                id(rc400_thermostat_target).publish_state(x[11]);
+
+                id(rc400_climate).set_mode(
+                    climate::CLIMATE_MODE_HEAT);
+
+                id(rc400_climate).target_temperature = x[11];
+              }
+
+              // Publish updated climate state to Home Assistant.
+              id(rc400_climate).publish_state();
+
+              // Preserve existing entities.
+              id(rc400_thermostat_status).publish_state(x[11] != 0);
+              id(rc400_thermostat_control).publish_state(x[11] != 0);
+
+
+
+
             id(rc400_flame).publish_state(x[12]);
             id(rc400_fireplace_status).publish_state(x[12] > 0);
             id(rc400_cold_climate).publish_state(x[13] != 0);
@@ -466,6 +486,78 @@ binary_sensor:
     name: "Fan Waiting to Start"
     id: rc400_fan_waiting
     icon: mdi:fan-alert
+
+
+
+climate:
+  - platform: template
+    name: "Fireplace Thermostat"
+    id: rc400_climate
+    optimistic: false
+    restore_mode: NO_RESTORE
+
+    sensor: rc400_remote_room_temperature
+
+    supported_modes:
+      - "OFF"
+      - HEAT
+
+    visual:
+      min_temperature: 6
+      max_temperature: 26
+      temperature_step: 1
+
+    initial_state:
+      mode: "OFF"
+      target_temperature: 22
+
+    set_mode_action:
+      - if:
+          condition:
+            binary_sensor.is_on: rc400_receiving
+          then:
+            - if:
+                condition:
+                  lambda: |-
+                    return x == climate::CLIMATE_MODE_HEAT;
+                then:
+                  - script.execute:
+                      id: rc400_send_command
+                      command: 0x25
+                      value: !lambda |-
+                        return std::max(6, std::min(26,
+                          id(rc400_saved_thermostat_c)));
+                else:
+                  - script.execute:
+                      id: rc400_send_command
+                      command: 0x25
+                      value: 0
+
+    set_target_temperature_action:
+      - lambda: |-
+          const int requested = std::max(6, std::min(26,
+              static_cast<int>(roundf(x))));
+          id(rc400_saved_thermostat_c) = requested;
+
+          if (id(rc400_climate).mode ==
+              climate::CLIMATE_MODE_OFF) {
+            id(rc400_climate).target_temperature = requested;
+            id(rc400_climate).publish_state();
+          }
+
+      - if:
+          condition:
+            lambda: |-
+              return id(rc400_receiving).state &&
+                     id(rc400_climate).mode ==
+                         climate::CLIMATE_MODE_HEAT;
+          then:
+            - script.execute:
+                id: rc400_send_command
+                command: 0x25
+                value: !lambda |-
+                  return id(rc400_saved_thermostat_c);
+
 
 script:
   - id: rc400_send_command
