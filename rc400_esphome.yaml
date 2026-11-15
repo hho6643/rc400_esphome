@@ -33,13 +33,7 @@ globals:
     restore_value: no
     initial_value: '0'
 
-switch:
-  - platform: gpio
-    id: rc400_antenna_switch
-    pin: GPIO38
-    restore_mode: ALWAYS_ON
-    internal: true  
-    
+   
 spi:
   - id: spi_1
     clk_pin: GPIO7
@@ -137,6 +131,7 @@ sx126x:
             id(rc400_flame).publish_state(x[12]);
             id(rc400_fireplace_status).publish_state(x[12] > 0);
             id(rc400_cold_climate).publish_state(x[13] != 0);
+            id(rc400_cold_climate_control).publish_state(x[13] != 0);
             id(rc400_fan).publish_state(x[14]);
             id(rc400_hot).publish_state(x[18] != 0);
             id(rc400_operating_raw).publish_state(x[19]);
@@ -181,7 +176,34 @@ sx126x:
                      x[18], x[20], x[19], rssi);
 
 
-# Home Assistant specific configuration for the RC400. 
+# Home Assistant & my ESP32 specific configuration for the RC400 fireplace receiver.
+
+switch:
+  - platform: gpio
+    name: "SX1262 Antenna Switch"
+    id: sx1262_antenna_switch
+    pin: GPIO38
+    restore_mode: ALWAYS_ON
+    internal: true
+
+  - platform: template
+    name: "Cold Climate Pilot Control"
+    id: rc400_cold_climate_control
+    icon: mdi:candle
+    optimistic: false
+
+    turn_on_action:
+      - script.execute:
+          id: rc400_send_command
+          command: 0x09
+          value: 1
+
+    turn_off_action:
+      - script.execute:
+          id: rc400_send_command
+          command: 0x09
+          value: 0
+
 
 button:
   - platform: template
@@ -407,13 +429,14 @@ script:
                 (command == 0x10 && value >= 0 && value <= 4) ||
                 (command == 0x0A && value >= 1 && value <= 5) ||
                 (command == 0x0B && (value == 0 || value == 1)) ||
-                (command == 0x22 && value >= 0 && value <= 180);
+                (command == 0x22 && value >= 0 && value <= 180) ||
+                (command == 0x09 && (value == 0 || value == 1));
           then:
             - logger.log:
                 format: "RC400: Command 0x%02X, value %d"
                 args: ['command', 'value']
 
-             - repeat:
+            - repeat:
                 count: 2
                 then:
 
@@ -460,6 +483,15 @@ script:
                           packet[16] = 0x01;
                           packet[17] = 0x05;
                           packet[18] = 0x31;
+                          packet[19] = 0x00;
+
+                        } else if (command == 0x09) {
+                          // Cold Climate Pilot: 1 = ON, 0 = OFF
+                          packet[9]  = 0x09;
+                          packet[11] = value;
+                          packet[16] = 0x01;
+                          packet[17] = 0x06;
+                          packet[18] = value ? 0x23 : 0x1D;
                           packet[19] = 0x00;
 
                         } else {
