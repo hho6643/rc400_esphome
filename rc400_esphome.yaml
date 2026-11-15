@@ -126,8 +126,8 @@ sx126x:
                 id(rc400_climate).target_temperature = x[11];
               }
 
-              // Publish updated climate state to Home Assistant.
-              id(rc400_climate).publish_state();
+            // Publish updated climate state to Home Assistant.
+            id(rc400_climate).publish_state();
 
             id(rc400_flame).publish_state(x[12]);
             id(rc400_fireplace_status).publish_state(x[12] > 0);
