@@ -158,18 +158,20 @@ sx126x:
               id(rc400_fan_control).publish_state(fan_options[x[14]]);
             }
 
-              if (x[12] >= 1 && x[12] <= 5) {
-                const char *flame_options[] = {
-                  "Level 1", "Level 2", "Level 3",
-                  "Level 4", "Level 5"
-                };
+            if (x[12] >= 1 && x[12] <= 5) {
+              const char *flame_options[] = {
+                "Level 1", "Level 2", "Level 3",
+                "Level 4", "Level 5"
+              };
 
-                id(rc400_flame_control).publish_state(
-                  flame_options[x[12] - 1]
-                );
-              }
+              id(rc400_flame_control).publish_state(
+                flame_options[x[12] - 1]
+              );
+            }
 
-
+            if (x[9] == 0x26) {
+              ESP_LOGI("rc400_temp", "Temperature report at %lu ms", millis());
+            }
 
             ESP_LOGI("rc400",
                      "Broadcast: flame=%u fan=%u "
