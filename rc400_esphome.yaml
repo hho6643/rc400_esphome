@@ -232,6 +232,22 @@ button:
                 level: WARN
                 format: "Cannot toggle: fireplace status unavailable"
 
+  - platform: template
+    name: "Send Room Temperature"
+    id: rc400_send_room_temperature_button
+    icon: mdi:thermometer-chevron-up
+    on_press:
+      - script.execute:
+          id: rc400_send_command
+          command: 0x26
+          value: !lambda |-
+            const float fahrenheit =
+                id(rc400_test_room_temperature_f).state;
+
+            return static_cast<int>(
+                roundf((fahrenheit - 32.0f) * 5.0f / 9.0f)
+            );
+
 select:
   - platform: template
     name: "Fan Speed Control"
@@ -330,6 +346,19 @@ number:
                 level: WARN
                 format: "Cannot set timer: fireplace is off or status unavailable"
 
+
+  - platform: template
+    name: "Room Temperature Test"
+    id: rc400_test_room_temperature_f
+    icon: mdi:thermometer
+    unit_of_measurement: "°F"
+    min_value: 40
+    max_value: 100
+    step: 1
+    mode: box
+    optimistic: true
+    restore_value: true
+    initial_value: 70
 
 sensor:
 
@@ -508,7 +537,8 @@ script:
                 (command == 0x0B && (value == 0 || value == 1)) ||
                 (command == 0x22 && value >= 0 && value <= 180) ||
                 (command == 0x25 && (value == 0 || (value >= 6 && value <= 26))) ||
-                (command == 0x09 && (value == 0 || value == 1));
+                (command == 0x09 && (value == 0 || value == 1)) ||
+                (command == 0x26 && value >= 4 && value <= 38);
           then:
             - logger.log:
                 format: "RC400: Command 0x%02X, value %d"
@@ -580,6 +610,31 @@ script:
                           packet[17] = 0x05;
                           packet[18] = 0x08;
                           packet[19] = 0x00;
+
+                        } else if (command == 0x26) {
+                          // RC400 room-temperature report.
+                          // Value is whole degrees Celsius.
+                          // Based on a captured physical remote packet.
+
+                          packet[9]  = 0x26;
+                          packet[10] = 0x0A;
+                          packet[11] = static_cast<uint8_t>(value);
+
+                          packet[12] = 0x00;
+                          packet[13] = 0x00;
+                          packet[14] = 0x0E;
+                          packet[15] = 0x06;
+
+                          // Captured remote state fields.
+                          // Kept constant for this initial test.
+                          packet[16] = 0x04;
+                          packet[17] = 0x05;
+                          packet[18] = 0x05;
+                          packet[19] = 0x03;
+
+                          packet[20] = 0x00;
+                          packet[21] = 0x00;
+                          packet[22] = 0x00;
 
                         } else {
                           // Power: value 1 = ON, 0 = OFF
