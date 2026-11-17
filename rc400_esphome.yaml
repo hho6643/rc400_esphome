@@ -18,6 +18,10 @@ globals:
     initial_value: '22'
 
    
+time:
+  - platform: homeassistant
+    id: rc400_clock
+
 spi:
   - id: spi_1
     clk_pin: GPIO7
@@ -418,6 +422,7 @@ binary_sensor:
   - platform: template
     name: "Thermostat Status"
     id: rc400_thermostat_status
+    icon: mdi:thermostat-cog
 
   - platform: template
     name: "Cold Climate Pilot"
@@ -437,7 +442,7 @@ binary_sensor:
   - platform: template
     name: "Timer Is Set"
     id: rc400_timer_is_set
-    icon: mdi:timer 
+    icon: mdi:timer-check
 
 
   - platform: template
@@ -531,14 +536,14 @@ script:
       - if:
           condition:
             lambda: |-
-              return
+              return id(rc400_clock).now().is_valid() && (
                 (command == 0x10 && value >= 0 && value <= 4) ||
                 (command == 0x0A && value >= 1 && value <= 5) ||
                 (command == 0x0B && (value == 0 || value == 1)) ||
                 (command == 0x22 && value >= 0 && value <= 180) ||
                 (command == 0x25 && (value == 0 || (value >= 6 && value <= 26))) ||
                 (command == 0x09 && (value == 0 || value == 1)) ||
-                (command == 0x26 && value >= 4 && value <= 38);
+                (command == 0x26 && value >= 4 && value <= 38));
           then:
             - logger.log:
                 format: "RC400: Command 0x%02X, value %d"
@@ -571,7 +576,6 @@ script:
                           packet[11] = value;
                           packet[16] = 0x01;
                           packet[17] = 0x05;
-                          packet[18] = 0x11;
                           packet[19] = 0x00;
 
                         } else if (command == 0x0A) {
@@ -580,7 +584,6 @@ script:
                           packet[11] = value;
                           packet[16] = 0x02;
                           packet[17] = 0x12;
-                          packet[18] = 0x3B;
                           packet[19] = 0x01;
 
                         } else if (command == 0x22) {
@@ -590,7 +593,6 @@ script:
                           packet[11] = static_cast<uint8_t>(value);
                           packet[16] = 0x01;
                           packet[17] = 0x05;
-                          packet[18] = 0x31;
                           packet[19] = 0x00;
 
                         } else if (command == 0x09) {
@@ -599,7 +601,6 @@ script:
                           packet[11] = value;
                           packet[16] = 0x01;
                           packet[17] = 0x06;
-                          packet[18] = value ? 0x23 : 0x1D;
                           packet[19] = 0x00;
 
                         } else if (command == 0x25) {
@@ -608,7 +609,6 @@ script:
                           packet[11] = static_cast<uint8_t>(value);
                           packet[16] = 0x01;
                           packet[17] = 0x05;
-                          packet[18] = 0x08;
                           packet[19] = 0x00;
 
                         } else if (command == 0x26) {
@@ -629,7 +629,6 @@ script:
                           // Kept constant for this initial test.
                           packet[16] = 0x04;
                           packet[17] = 0x05;
-                          packet[18] = 0x05;
                           packet[19] = 0x03;
 
                           packet[20] = 0x00;
@@ -643,9 +642,13 @@ script:
                           packet[11] = value ? 0x05 : 0x00;
                           packet[16] = 0x02;
                           packet[17] = 0x05;
-                          packet[18] = value ? 0x2E : 0x34;
                           packet[19] = 0x01;
                         }
+
+                        // Experimental remote counter: wall-clock minute (0-59).
+                        // This is applied to every outgoing command before checksum.
+                        const auto now = id(rc400_clock).now();
+                        packet[18] = static_cast<uint8_t>(now.minute);
 
                         // RC400 checksum
                         uint32_t sum = 0x2D + 0xD4;
@@ -663,7 +666,7 @@ script:
           else:
             - logger.log:
                 level: WARN
-                format: "RC400: Invalid command 0x%02X, value %d"
+                format: "RC400: Invalid command 0x%02X, value %d, or clock unavailable"
                 args: ['command', 'value']
 
 interval:
