@@ -39,3 +39,6 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 * Nooelec RTL-SDR v5 Bundle - NESDR Smart HF/VHF/UHF (100kHz-1.75GHz) Software Defined Radio -> sniffing transmissions between the RC400 & fireplace
 * SDRangel -> traffic sniffing & capturing
 * ChatGPT -> Figuring out the messages from the remote, most of the coding
+
+# What is needed
+Almost certainly, this won't work exactly as is for another fireplace/remote combo.  The manuals say the remote needs to pair with the fireplace, and that the pairing is unique.  That's also the case with the RC300 remotes.  For those remotes, having a couple examples of different remotes routine transmissions made it possible to figure out the algorithm by which the remote pairing is unique.  Since I only have the 1 fireplace & 1 remote, I can't do that.  Any contributors who can provide some captures from their own systems would be welcome.
