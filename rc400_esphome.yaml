@@ -93,10 +93,22 @@ sx126x:
                 x[5] == 0x15 && x[6] == 0x57 &&
                 x[7] == 0xFE && x[8] == 0xBD) {
 
-              id(rc400_remote_room_temperature).publish_state(x[11]);
+                id(rc400_remote_room_temperature).publish_state(x[11]);
 
-              ESP_LOGI("rc400", "Remote room temperature: %u°C", x[11]);
-              return;
+                auto now = id(rc400_clock).now();
+
+                if (now.is_valid()) {
+                  ESP_LOGI("rc400_temp",
+                          "Time: %s | Byte 18: 0x%02X (%u)",
+                          now.strftime("%H:%M:%S").c_str(),
+                          x[18], x[18]);
+                } else {
+                  ESP_LOGI("rc400_temp",
+                          "Time unavailable | Byte 18: 0x%02X (%u)",
+                          x[18], x[18]);
+                }
+
+                return;
             }
 
             // Fireplace source address and broadcast destination.
@@ -173,16 +185,7 @@ sx126x:
               );
             }
 
-            if (x[9] == 0x26) {
-              auto now = id(rc400_clock).now();
 
-              if (now.is_valid()) {
-                ESP_LOGI("rc400_temp",
-                        "Time: %s | Byte 18: 0x%02X (%u)",
-                        now.strftime("%H:%M:%S").c_str(),
-                        x[18], x[18]);
-              }
-            }
 
             ESP_LOGI("rc400",
                      "Broadcast: flame=%u fan=%u "
