@@ -125,8 +125,6 @@ sx126x:
 
             if (x[11] == 0) {
               // Thermostat is OFF. Preserve the last target.
-              id(rc400_setpoint).publish_state(NAN);
-
               id(rc400_climate).set_mode(
                   climate::CLIMATE_MODE_OFF);
 
