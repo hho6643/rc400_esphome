@@ -174,7 +174,14 @@ sx126x:
             }
 
             if (x[9] == 0x26) {
-              ESP_LOGI("rc400_temp", "Temperature report at %lu ms", millis());
+              auto now = id(rc400_clock).now();
+
+              if (now.is_valid()) {
+                ESP_LOGI("rc400_temp",
+                        "Time: %s | Byte 18: 0x%02X (%u)",
+                        now.strftime("%H:%M:%S").c_str(),
+                        x[18], x[18]);
+              }
             }
 
             ESP_LOGI("rc400",
@@ -184,16 +191,7 @@ sx126x:
                      x[12], x[14], x[11], x[13],
                      x[18], x[20], x[19], rssi);
 
-            auto received_at = id(rc400_clock).now();
 
-            if (received_at.is_valid()) {
-              const std::string wall_time =
-                  received_at.strftime("%Y-%m-%d %H:%M:%S");
-
-              ESP_LOGI("rc400_temp",
-                      "RC400 remote temperature broadcast: time=%s, byte18=0x%02X (%u), temperature=%uC",
-                      wall_time.c_str(), x[18], x[18], x[11]);
-            }
 
 # Home Assistant & my ESP32 specific configuration for the RC400 fireplace receiver.
 
