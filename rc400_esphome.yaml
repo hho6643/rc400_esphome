@@ -1,4 +1,8 @@
 # Default board: XIAO ESP32S# & Wio-SX1262 Kit from Seeed Studio, SKU #113110064
+esphome:
+  name: rc400-receiver
+  friendly_name: RC400 Receiver
+  area: Kitchen
 
 esp32:
   board: seeed_xiao_esp32s3
@@ -17,6 +21,20 @@ globals:
     restore_value: true
     initial_value: '22'
 
+  # Last inferred physical fan state:
+  # -1 = Unknown, 0 = Stopped, 1 = Running
+  - id: rc400_fan_running_state
+    type: int
+    restore_value: no
+    initial_value: '-1'
+
+  # Latches true once the fan has stopped during
+  # an OFF cycle. Prevents speed changes from
+  # falsely indicating that the fan restarted.
+  - id: rc400_fan_cooldown_complete
+    type: bool
+    restore_value: no
+    initial_value: 'false'
    
 time:
   - platform: homeassistant
@@ -163,6 +181,59 @@ sx126x:
             id(rc400_fan_waiting).publish_state(
                 x[19] == 0x06 && x[14] > 0
             );
+
+            // ----------------------------------------------------
+            // Stateful physical fan-running inference
+            // ----------------------------------------------------
+
+            const bool fireplace_on = (x[12] > 0);
+            const bool fan_speed_set = (x[14] > 0);
+            const bool fan_waiting = (x[19] == 0x06);
+
+            // Fireplace ON: a new operating cycle can clear
+            // the cooldown-complete latch.
+            if (fireplace_on) {
+
+              id(rc400_fan_cooldown_complete) = false;
+
+              if (!fan_speed_set || fan_waiting) {
+                // No fan requested, or startup delay active.
+                id(rc400_fan_running_state) = 0;
+              } else if (x[19] == 0xB0 ||
+                        x[19] == 0xB4) {
+                // Operating state associated with fan running.
+                id(rc400_fan_running_state) = 1;
+              }
+
+            } else {
+
+              // Fireplace OFF.
+              if (!fan_speed_set) {
+                // Fan reached zero: cooldown has completed.
+                id(rc400_fan_cooldown_complete) = true;
+                id(rc400_fan_running_state) = 0;
+
+              } else if (id(rc400_fan_cooldown_complete)) {
+                // Fan speed was changed after cooldown.
+                // Do not infer that the blower restarted.
+                id(rc400_fan_running_state) = 0;
+
+              } else {
+                // During shutdown/cooldown, preserve the
+                // previously established running state.
+                // If unknown after reboot, remain unknown.
+              }
+            }
+
+            // Publish only when a state is established.
+            if (id(rc400_fan_running_state) >= 0) {
+              id(rc400_fan_running).publish_state(
+                  id(rc400_fan_running_state) == 1
+              );
+            } else {
+              id(rc400_fan_running).invalidate_state();
+            }
+
 
             if (x[14] <= 4) {
               const char *fan_options[] = {
@@ -463,7 +534,10 @@ binary_sensor:
     id: rc400_fan_waiting
     icon: mdi:fan-alert
 
-
+  - platform: template
+    name: "Fan Running"
+    id: rc400_fan_running
+    icon: mdi:fan
 
 climate:
   - platform: template
@@ -702,5 +776,9 @@ interval:
             id(rc400_timer_is_set).invalidate_state();
             id(rc400_thermostat_status).invalidate_state();
             id(rc400_fan_waiting).invalidate_state();
-          }
+            id(rc400_fan_running).invalidate_state();
+            id(rc400_fan_running_state) = -1;
+            id(rc400_fan_cooldown_complete) = false;
+
+ }
 
