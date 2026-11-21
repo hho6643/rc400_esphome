@@ -1,4 +1,8 @@
 # Default board: XIAO ESP32S# & Wio-SX1262 Kit from Seeed Studio, SKU #113110064
+substitutions:
+  # Override in your main YAML or point at an HA template sensor.
+  rc400_external_temperature_entity: sensor.rc400_external_temperature
+
 esphome:
   name: rc400-receiver
   friendly_name: RC400 Receiver
@@ -115,6 +119,10 @@ sx126x:
                 if (!id(rc400_remote_room_temperature).has_state() ||
                     id(rc400_remote_room_temperature).state != x[11])
                   id(rc400_remote_room_temperature).publish_state(x[11]);
+                if (id(rc400_temperature_source).current_option() == "RC400 Remote" &&
+                    (!id(rc400_room_temperature).has_state() ||
+                     id(rc400_room_temperature).state != x[11]))
+                  id(rc400_room_temperature).publish_state(x[11]);
 
                 auto now = id(rc400_clock).now();
 
@@ -254,7 +262,8 @@ sx126x:
                 "Off", "Level 1", "Level 2", "Level 3", "Level 4"
               };
 
-              if (!id(rc400_fan_control).has_state() || id(rc400_fan_control).current_option() != fan_options[x[14]])
+              if ((!id(rc400_fan_control).has_state() ||
+                  id(rc400_fan_control).current_option() != fan_options[x[14]]))
                 id(rc400_fan_control).publish_state(fan_options[x[14]]);
             }
 
@@ -264,7 +273,8 @@ sx126x:
                 "Level 4", "Level 5"
               };
 
-              if (!id(rc400_flame_control).has_state() || id(rc400_flame_control).current_option() != flame_options[x[12] - 1])
+              if ((!id(rc400_flame_control).has_state() ||
+                  id(rc400_flame_control).current_option() != flame_options[x[12] - 1]))
                 id(rc400_flame_control).publish_state(flame_options[x[12] - 1]);
             }
 
@@ -332,6 +342,30 @@ button:
 
 
 select:
+  - platform: template
+    name: "Temperature Source"
+    id: rc400_temperature_source
+    icon: mdi:thermometer-auto
+    optimistic: true
+    restore_value: true
+    initial_option: "RC400 Remote"
+    options:
+      - "RC400 Remote"
+      - "External Sensor"
+    on_value:
+      then:
+        - lambda: |-
+            auto *source = (x == "RC400 Remote")
+                ? id(rc400_remote_room_temperature)
+                : id(rc400_external_temperature);
+            if (source->has_state() && !isnan(source->state)) {
+              if (!id(rc400_room_temperature).has_state() ||
+                  id(rc400_room_temperature).state != source->state)
+                id(rc400_room_temperature).publish_state(source->state);
+            } else {
+              id(rc400_room_temperature).publish_state(NAN);
+            }
+
   - platform: template
     name: "Fan Speed Control"
     id: rc400_fan_control
@@ -430,7 +464,31 @@ number:
                 format: "Cannot set timer: fireplace is off or status unavailable"
 
 
+
 sensor:
+  # Read a Home Assistant entity (or a template combining multiple sensors).
+  - platform: homeassistant
+    id: rc400_external_temperature
+    entity_id: ${rc400_external_temperature_entity}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            if (id(rc400_temperature_source).current_option() == "External Sensor" &&
+                !isnan(x) &&
+                (!id(rc400_room_temperature).has_state() ||
+                 id(rc400_room_temperature).state != x))
+              id(rc400_room_temperature).publish_state(x);
+
+  - platform: template
+    name: "Room Temperature"
+    id: rc400_room_temperature
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 0
+    icon: mdi:home-thermometer
+
 
   - platform: template
     name: "Flame Level"
@@ -532,7 +590,7 @@ climate:
     optimistic: false
     restore_mode: NO_RESTORE
 
-    sensor: rc400_remote_room_temperature
+    sensor: rc400_room_temperature
 
     supported_modes:
       - "OFF"
@@ -771,3 +829,20 @@ interval:
 
           }
 
+
+  # The physical RC400 reports room temperature by RF. Only send our
+  # substitute report when the external source is selected.
+  - interval: 4min
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return id(rc400_temperature_source).current_option() == "External Sensor" &&
+                     id(rc400_external_temperature).has_state() &&
+                     !isnan(id(rc400_external_temperature).state);
+          then:
+            - script.execute:
+                id: rc400_send_command
+                command: 0x26
+                value: !lambda |-
+                  return static_cast<int>(lroundf(id(rc400_external_temperature).state));
