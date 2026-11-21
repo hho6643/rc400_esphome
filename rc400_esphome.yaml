@@ -112,7 +112,9 @@ sx126x:
                 x[5] == 0x15 && x[6] == 0x57 &&
                 x[7] == 0xFE && x[8] == 0xBD) {
 
-                id(rc400_remote_room_temperature).publish_state(x[11]);
+                if (!id(rc400_remote_room_temperature).has_state() ||
+                    id(rc400_remote_room_temperature).state != x[11])
+                  id(rc400_remote_room_temperature).publish_state(x[11]);
 
                 auto now = id(rc400_clock).now();
 
@@ -142,46 +144,57 @@ sx126x:
             id(rc400_last_broadcast_ms) = millis();
 
 
-            if (x[11] == 0) {
-              // Thermostat is OFF. Preserve the last target.
-              id(rc400_climate).set_mode(
-                  climate::CLIMATE_MODE_OFF);
+            // Publish only when the reported state changes.
+            auto publish_sensor = [](auto *sensor, float value) {
+              if (!sensor->has_state() ||
+                  (std::isnan(value) != std::isnan(sensor->state)) ||
+                  (!std::isnan(value) && sensor->state != value)) {
+                sensor->publish_state(value);
+              }
+            };
+            auto publish_binary = [](auto *sensor, bool value) {
+              if (!sensor->has_state() || sensor->state != value)
+                sensor->publish_state(value);
+            };
 
-            } else {
-              // Thermostat is ON. Broadcast contains Celsius target.
-              id(rc400_setpoint).publish_state(x[11]);
-              id(rc400_saved_thermostat_c) = x[11];
+            const bool thermostat_on = x[11] != 0;
+            const auto desired_mode = thermostat_on
+                ? climate::CLIMATE_MODE_HEAT : climate::CLIMATE_MODE_OFF;
+            bool climate_changed = id(rc400_climate).mode != desired_mode;
+            if (climate_changed)
+              id(rc400_climate).set_mode(desired_mode);
 
-              id(rc400_climate).set_mode(
-                  climate::CLIMATE_MODE_HEAT);
-
-              id(rc400_climate).target_temperature = x[11];
+            if (thermostat_on) {
+              publish_sensor(id(rc400_setpoint), x[11]);
+              if (id(rc400_saved_thermostat_c) != x[11])
+                id(rc400_saved_thermostat_c) = x[11];
+              if (id(rc400_climate).target_temperature != x[11]) {
+                id(rc400_climate).target_temperature = x[11];
+                climate_changed = true;
+              }
             }
+            if (climate_changed)
+              id(rc400_climate).publish_state();
 
-            // Publish updated climate state to Home Assistant.
-            id(rc400_climate).publish_state();
-
-            // Update the read-only thermostat status sensor.
-            id(rc400_thermostat_status).publish_state(x[11] != 0);
-
-            id(rc400_flame).publish_state(x[12]);
-            id(rc400_fireplace_status).publish_state(x[12] > 0);
-            id(rc400_cold_climate).publish_state(x[13] != 0);
-            id(rc400_cold_climate_control).publish_state(x[13] != 0);
-            id(rc400_fan).publish_state(x[14]);
-            id(rc400_hot).publish_state(x[18] != 0);
-            id(rc400_operating_raw).publish_state(x[19]);
-            id(rc400_timer).publish_state(x[20]);
-            id(rc400_timer_is_set).publish_state(x[20] != 0);
-            id(rc400_timer_control).publish_state(x[20]);
-            id(rc400_rssi).publish_state(rssi);
-            id(rc400_receiving).publish_state(true);
-
+            publish_binary(id(rc400_thermostat_status), thermostat_on);
+            publish_sensor(id(rc400_flame), x[12]);
+            publish_binary(id(rc400_fireplace_status), x[12] > 0);
+            publish_binary(id(rc400_cold_climate), x[13] != 0);
+            if (id(rc400_cold_climate_control).state != (x[13] != 0))
+              id(rc400_cold_climate_control).publish_state(x[13] != 0);
+            publish_sensor(id(rc400_fan), x[14]);
+            publish_binary(id(rc400_hot), x[18] != 0);
+            publish_sensor(id(rc400_operating_raw), x[19]);
+            publish_sensor(id(rc400_timer), x[20]);
+            publish_binary(id(rc400_timer_is_set), x[20] != 0);
+            if (id(rc400_timer_control).state != x[20])
+              id(rc400_timer_control).publish_state(x[20]);
+            publish_sensor(id(rc400_rssi), rssi);
+            publish_binary(id(rc400_receiving), true);
 
             // Fan startup wait: supported by this capture.
-            id(rc400_fan_waiting).publish_state(
-                x[19] == 0x06 && x[14] > 0
-            );
+            publish_binary(id(rc400_fan_waiting),
+                           x[19] == 0x06 && x[14] > 0);
 
             // ----------------------------------------------------
             // Stateful physical fan-running inference
@@ -228,11 +241,11 @@ sx126x:
 
             // Publish only when a state is established.
             if (id(rc400_fan_running_state) >= 0) {
-              id(rc400_fan_running).publish_state(
-                  id(rc400_fan_running_state) == 1
-              );
+              publish_binary(id(rc400_fan_running),
+                             id(rc400_fan_running_state) == 1);
             } else {
-              id(rc400_fan_running).invalidate_state();
+              if (id(rc400_fan_running).has_state())
+                id(rc400_fan_running).invalidate_state();
             }
 
 
@@ -241,7 +254,8 @@ sx126x:
                 "Off", "Level 1", "Level 2", "Level 3", "Level 4"
               };
 
-              id(rc400_fan_control).publish_state(fan_options[x[14]]);
+              if (id(rc400_fan_control).state != fan_options[x[14]])
+                id(rc400_fan_control).publish_state(fan_options[x[14]]);
             }
 
             if (x[12] >= 1 && x[12] <= 5) {
@@ -250,9 +264,8 @@ sx126x:
                 "Level 4", "Level 5"
               };
 
-              id(rc400_flame_control).publish_state(
-                flame_options[x[12] - 1]
-              );
+              if (id(rc400_flame_control).state != flame_options[x[12] - 1])
+                id(rc400_flame_control).publish_state(flame_options[x[12] - 1]);
             }
 
 
@@ -762,9 +775,12 @@ interval:
               (uint32_t)(millis() -
               id(rc400_last_broadcast_ms)) < 15000;
 
-          id(rc400_receiving).publish_state(fresh);
+          const bool was_receiving =
+              id(rc400_receiving).has_state() && id(rc400_receiving).state;
+          if (!id(rc400_receiving).has_state() || was_receiving != fresh)
+            id(rc400_receiving).publish_state(fresh);
 
-          if (!fresh) {
+          if (!fresh && was_receiving) {
             id(rc400_flame).publish_state(NAN);
             id(rc400_fan).publish_state(NAN);
             id(rc400_setpoint).publish_state(NAN);
@@ -781,5 +797,5 @@ interval:
             id(rc400_fan_running_state) = -1;
             id(rc400_fan_cooldown_complete) = false;
 
-            }
+          }
 
