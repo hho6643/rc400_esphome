@@ -781,5 +781,5 @@ interval:
             id(rc400_fan_running_state) = -1;
             id(rc400_fan_cooldown_complete) = false;
 
- }
+            }
 
