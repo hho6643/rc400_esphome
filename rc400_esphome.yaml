@@ -6,6 +6,8 @@ substitutions:
 esphome:
   name: rc400-receiver
   friendly_name: RC400 Receiver
+  includes:
+    - rc400_protocol.h
 
 logger:
   level: INFO
@@ -84,37 +86,23 @@ sx126x:
     on_packet:
       then:
         - lambda: |-
-            if (x.size() != 25) {
-              ESP_LOGW("rc400", "Wrong packet length: %u",
-                       (unsigned) x.size());
+            if (x.size() != rc400::kPacketLength) {
+              ESP_LOGW("rc400", "Wrong packet length: %u", (unsigned) x.size());
               return;
             }
-
-            // Validate terminator and RC400 checksum.
-            if (x[24] != 0x2A) {
+            if (x[24] != rc400::kTerminator) {
               ESP_LOGW("rc400", "Invalid terminator");
               return;
             }
-
-            uint32_t sum = 0x2D + 0xD4;
-            for (size_t i = 0; i < 23; i++) {
-              sum += x[i];
-            }
-            const uint8_t expected =
-                static_cast<uint8_t>(sum - 1);
-
-            if (x[23] != expected) {
+            if (!rc400::valid_packet(x)) {
               ESP_LOGW("rc400", "Checksum mismatch");
               return;
             }
 
             // Room temperature report transmitted by the RC400 remote.
             // Message type 0x26, temperature in degrees Celsius at x[11].
-            if (x[9] == 0x26 &&
-                x[1] == 0x00 && x[2] == 0x00 &&
-                x[3] == 0xA1 && x[4] == 0xAF &&
-                x[5] == 0x15 && x[6] == 0x57 &&
-                x[7] == 0xFE && x[8] == 0xBD) {
+            if (rc400::remote_temperature_report(x)) {
+
 
                 if (!id(rc400_remote_room_temperature).has_state() ||
                     id(rc400_remote_room_temperature).state != x[11])
@@ -141,11 +129,8 @@ sx126x:
             }
 
             // Fireplace source address and broadcast destination.
-            if (x[1] != 0x15 || x[2] != 0x57 ||
-                x[3] != 0xFE || x[4] != 0xBD ||
-                x[5] != 0xFF || x[6] != 0xFF ||
-                x[7] != 0xFF || x[8] != 0xFF ||
-                x[9] != 0x9A || x[10] != 0x0E) {
+            if (!rc400::fireplace_broadcast(x)) {
+
               return;
             }
 
@@ -666,111 +651,10 @@ script:
                   - sx126x.send_packet:
                       id: sx126x_1
                       data: !lambda |-
-                        std::vector<uint8_t> packet = {
-                          0x03,
-                          0x00, 0x00, 0xA1, 0xAF,
-                          0x15, 0x57, 0xFE, 0xBD,
-                          0x00, 0x05, 0x00,
-                          0x00, 0x00,
-                          0x0E, 0x06,
-                          0x00, 0x00, 0x00, 0x00,
-                          0x00, 0x00, 0x00,
-                          0x00,
-                          0x2A
-                        };
-
-                        if (command == 0x10) {
-                          // Fan: Off or Levels 1-4
-                          packet[9]  = 0x10;
-                          packet[11] = value;
-                          packet[16] = 0x01;
-                          packet[17] = 0x05;
-                          packet[19] = 0x00;
-
-                        } else if (command == 0x0A) {
-                          // Flame: Levels 1-5
-                          packet[9]  = 0x0A;
-                          packet[11] = value;
-                          packet[16] = 0x02;
-                          packet[17] = 0x12;
-                          packet[19] = 0x01;
-
-                        } else if (command == 0x22) {
-                          // Timer: value is the requested duration in minutes.
-                          // 0 disables the timer.
-                          packet[9]  = 0x22;
-                          packet[11] = static_cast<uint8_t>(value);
-                          packet[16] = 0x01;
-                          packet[17] = 0x05;
-                          packet[19] = 0x00;
-
-                        } else if (command == 0x09) {
-                          // Cold Climate Pilot: 1 = ON, 0 = OFF
-                          packet[9]  = 0x09;
-                          packet[11] = value;
-                          packet[16] = 0x01;
-                          packet[17] = 0x06;
-                          packet[19] = 0x00;
-
-                        } else if (command == 0x25) {
-                          // Thermostat: 0 = OFF; positive values = setpoint in Celsius
-                          packet[9]  = 0x25;
-                          packet[11] = static_cast<uint8_t>(value);
-                          packet[16] = 0x01;
-                          packet[17] = 0x05;
-                          packet[19] = 0x00;
-
-                        } else if (command == 0x26) {
-                          // RC400 room-temperature report.
-                          // Value is whole degrees Celsius.
-                          // Based on a captured physical remote packet.
-
-                          packet[9]  = 0x26;
-                          packet[10] = 0x0A;
-                          packet[11] = static_cast<uint8_t>(value);
-
-                          packet[12] = 0x00;
-                          packet[13] = 0x00;
-                          packet[14] = 0x0E;
-                          packet[15] = 0x06;
-
-                          // Captured remote state fields.
-                          // Kept constant for this initial test.
-                          packet[16] = 0x04;
-                          packet[17] = 0x05;
-                          packet[19] = 0x03;
-
-                          packet[20] = 0x00;
-                          packet[21] = 0x00;
-                          packet[22] = 0x00;
-
-                        } else {
-                          // Power: value 1 = ON, 0 = OFF
-                          // Both use RC400 command 0x0A.
-                          packet[9]  = 0x0A;
-                          packet[11] = value ? 0x05 : 0x00;
-                          packet[16] = 0x02;
-                          packet[17] = 0x05;
-                          packet[19] = 0x01;
-                        }
-
-                        // Experimental remote counter: wall-clock minute (0-59).
-                        // This is applied to every outgoing command before checksum.
+                        // Keep the experimental wall-clock minute byte unchanged.
                         const auto now = id(rc400_clock).now();
-                        packet[18] = static_cast<uint8_t>(now.minute);
-
-                        // RC400 checksum
-                        uint32_t sum = 0x2D + 0xD4;
-
-                        for (size_t i = 0; i < 23; i++) {
-                          sum += packet[i];
-                        }
-
-                        packet[23] = static_cast<uint8_t>(
-                          (sum - 1) & 0xFF
-                        );
-
-                        return packet;
+                        return rc400::build_command(
+                            command, value, static_cast<uint8_t>(now.minute));
                   - delay: 60ms
           else:
             - logger.log:
