@@ -173,7 +173,6 @@ sx126x:
               id(rc400_climate).set_mode(desired_mode);
 
             if (thermostat_on) {
-              publish_sensor(id(rc400_setpoint), x[11]);
               if (id(rc400_saved_thermostat_c) != x[11])
                 id(rc400_saved_thermostat_c) = x[11];
               if (id(rc400_climate).target_temperature != x[11]) {
@@ -184,10 +183,8 @@ sx126x:
             if (climate_changed)
               id(rc400_climate).publish_state();
 
-            publish_binary(id(rc400_thermostat_status), thermostat_on);
             publish_sensor(id(rc400_flame), x[12]);
             publish_binary(id(rc400_fireplace_status), x[12] > 0);
-            publish_binary(id(rc400_cold_climate), x[13] != 0);
             if (id(rc400_cold_climate_control).state != (x[13] != 0))
               id(rc400_cold_climate_control).publish_state(x[13] != 0);
             publish_sensor(id(rc400_fan), x[14]);
@@ -506,14 +503,6 @@ sensor:
     accuracy_decimals: 0
 
   - platform: template
-    name: "Thermostat Setpoint"
-    id: rc400_setpoint
-    icon: mdi:thermostat
-    unit_of_measurement: "°C"
-    device_class: temperature
-    accuracy_decimals: 0
-
-  - platform: template
     name: "Remote Room Temperature"
     id: rc400_remote_room_temperature
     unit_of_measurement: "°C"
@@ -546,16 +535,6 @@ sensor:
 
 
 binary_sensor:
-  - platform: template
-    name: "Thermostat Status"
-    id: rc400_thermostat_status
-    icon: mdi:thermostat-cog
-
-  - platform: template
-    name: "Cold Climate Pilot"
-    id: rc400_cold_climate
-    icon: mdi:candle
-
   - platform: template
     name: "Fireplace Status"
     id: rc400_fireplace_status
@@ -816,15 +795,12 @@ interval:
           if (!fresh && was_receiving) {
             id(rc400_flame).publish_state(NAN);
             id(rc400_fan).publish_state(NAN);
-            id(rc400_setpoint).publish_state(NAN);
             id(rc400_timer).publish_state(NAN);
             id(rc400_operating_raw).publish_state(NAN);
             id(rc400_rssi).publish_state(NAN);
-            id(rc400_cold_climate).invalidate_state();
             id(rc400_hot).invalidate_state();
             id(rc400_fireplace_status).invalidate_state();
             id(rc400_timer_is_set).invalidate_state();
-            id(rc400_thermostat_status).invalidate_state();
             id(rc400_fan_waiting).invalidate_state();
             id(rc400_fan_running).invalidate_state();
             id(rc400_fan_running_state) = -1;
