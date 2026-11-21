@@ -2,13 +2,14 @@
 esphome:
   name: rc400-receiver
   friendly_name: RC400 Receiver
-  area: Kitchen
+
+logger:
+  level: INFO
 
 esp32:
   board: seeed_xiao_esp32s3
   framework:
     type: esp-idf
-
 
 globals:
   - id: rc400_last_broadcast_ms
