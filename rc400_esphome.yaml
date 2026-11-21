@@ -330,21 +330,6 @@ button:
                 level: WARN
                 format: "Cannot toggle: fireplace status unavailable"
 
-  - platform: template
-    name: "Send Room Temperature"
-    id: rc400_send_room_temperature_button
-    icon: mdi:thermometer-chevron-up
-    on_press:
-      - script.execute:
-          id: rc400_send_command
-          command: 0x26
-          value: !lambda |-
-            const float fahrenheit =
-                id(rc400_test_room_temperature_f).state;
-
-            return static_cast<int>(
-                roundf((fahrenheit - 32.0f) * 5.0f / 9.0f)
-            );
 
 select:
   - platform: template
@@ -444,19 +429,6 @@ number:
                 level: WARN
                 format: "Cannot set timer: fireplace is off or status unavailable"
 
-
-  - platform: template
-    name: "Room Temperature Test"
-    id: rc400_test_room_temperature_f
-    icon: mdi:thermometer
-    unit_of_measurement: "°F"
-    min_value: 40
-    max_value: 100
-    step: 1
-    mode: box
-    optimistic: true
-    restore_value: true
-    initial_value: 70
 
 sensor:
 
