@@ -254,7 +254,7 @@ sx126x:
                 "Off", "Level 1", "Level 2", "Level 3", "Level 4"
               };
 
-              if (id(rc400_fan_control).state != fan_options[x[14]])
+              if (!id(rc400_fan_control).has_state() || id(rc400_fan_control).current_option() != fan_options[x[14]])
                 id(rc400_fan_control).publish_state(fan_options[x[14]]);
             }
 
@@ -264,7 +264,7 @@ sx126x:
                 "Level 4", "Level 5"
               };
 
-              if (id(rc400_flame_control).state != flame_options[x[12] - 1])
+              if (!id(rc400_flame_control).has_state() || id(rc400_flame_control).current_option() != flame_options[x[12] - 1])
                 id(rc400_flame_control).publish_state(flame_options[x[12] - 1]);
             }
 
