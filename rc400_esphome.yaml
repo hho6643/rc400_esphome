@@ -355,9 +355,12 @@ select:
     on_value:
       then:
         - lambda: |-
-            auto *source = (x == "RC400 Remote")
-                ? id(rc400_remote_room_temperature)
-                : id(rc400_external_temperature);
+            esphome::sensor::Sensor *source =
+                (x == "RC400 Remote")
+                    ? static_cast<esphome::sensor::Sensor *>(
+                          id(rc400_remote_room_temperature))
+                    : static_cast<esphome::sensor::Sensor *>(
+                          id(rc400_external_temperature));
             if (source->has_state() && !isnan(source->state)) {
               if (!id(rc400_room_temperature).has_state() ||
                   id(rc400_room_temperature).state != source->state)
