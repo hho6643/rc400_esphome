@@ -80,7 +80,7 @@ sx126x:
 
 
     # Requires board-specific confirmation:
-    rf_switch: false
+    rf_switch: true
     tcxo_voltage: 2_4V
     tcxo_delay: 5ms
 
@@ -206,8 +206,6 @@ sx126x:
               rc400::publish_select_if_changed(id(rc400_flame_control),
                                                flame_options[x[12] - 1]);
             }
-
-
 
             ESP_LOGI("rc400",
                      "Broadcast: flame=%u fan=%u "
