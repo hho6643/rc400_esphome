@@ -8,6 +8,7 @@ esphome:
   friendly_name: RC400 Receiver
   includes:
     - rc400_protocol.h
+    - rc400_state.h
 
 logger:
   level: INFO
@@ -137,19 +138,6 @@ sx126x:
             id(rc400_last_broadcast_ms) = millis();
 
 
-            // Publish only when the reported state changes.
-            auto publish_sensor = [](auto *sensor, float value) {
-              if (!sensor->has_state() ||
-                  (std::isnan(value) != std::isnan(sensor->state)) ||
-                  (!std::isnan(value) && sensor->state != value)) {
-                sensor->publish_state(value);
-              }
-            };
-            auto publish_binary = [](auto *sensor, bool value) {
-              if (!sensor->has_state() || sensor->state != value)
-                sensor->publish_state(value);
-            };
-
             const bool thermostat_on = x[11] != 0;
             const auto desired_mode = thermostat_on
                 ? climate::CLIMATE_MODE_HEAT : climate::CLIMATE_MODE_OFF;
@@ -168,70 +156,31 @@ sx126x:
             if (climate_changed)
               id(rc400_climate).publish_state();
 
-            publish_sensor(id(rc400_flame), x[12]);
-            publish_binary(id(rc400_fireplace_status), x[12] > 0);
-            if (id(rc400_cold_climate_control).state != (x[13] != 0))
-              id(rc400_cold_climate_control).publish_state(x[13] != 0);
-            publish_sensor(id(rc400_fan), x[14]);
-            publish_binary(id(rc400_hot), x[18] != 0);
-            publish_sensor(id(rc400_operating_raw), x[19]);
-            publish_sensor(id(rc400_timer), x[20]);
-            publish_binary(id(rc400_timer_is_set), x[20] != 0);
-            if (id(rc400_timer_control).state != x[20])
-              id(rc400_timer_control).publish_state(x[20]);
-            publish_sensor(id(rc400_rssi), rssi);
-            publish_binary(id(rc400_receiving), true);
+            rc400::publish_sensor_if_changed(id(rc400_flame), x[12]);
+            rc400::publish_binary_if_changed(id(rc400_fireplace_status), x[12] > 0);
+            rc400::publish_switch_if_changed(id(rc400_cold_climate_control),
+                                             x[13] != 0);
+            rc400::publish_sensor_if_changed(id(rc400_fan), x[14]);
+            rc400::publish_binary_if_changed(id(rc400_hot), x[18] != 0);
+            rc400::publish_sensor_if_changed(id(rc400_operating_raw), x[19]);
+            rc400::publish_sensor_if_changed(id(rc400_timer), x[20]);
+            rc400::publish_binary_if_changed(id(rc400_timer_is_set), x[20] != 0);
+            rc400::publish_number_if_changed(id(rc400_timer_control), x[20]);
+            rc400::publish_sensor_if_changed(id(rc400_rssi), rssi);
+            rc400::publish_binary_if_changed(id(rc400_receiving), true);
 
             // Fan startup wait: supported by this capture.
-            publish_binary(id(rc400_fan_waiting),
+            rc400::publish_binary_if_changed(id(rc400_fan_waiting),
                            x[19] == 0x06 && x[14] > 0);
 
-            // ----------------------------------------------------
-            // Stateful physical fan-running inference
-            // ----------------------------------------------------
-
-            const bool fireplace_on = (x[12] > 0);
-            const bool fan_speed_set = (x[14] > 0);
-            const bool fan_waiting = (x[19] == 0x06);
-
-            // Fireplace ON: a new operating cycle can clear
-            // the cooldown-complete latch.
-            if (fireplace_on) {
-
-              id(rc400_fan_cooldown_complete) = false;
-
-              if (!fan_speed_set || fan_waiting) {
-                // No fan requested, or startup delay active.
-                id(rc400_fan_running_state) = 0;
-              } else if (x[19] == 0xB0 ||
-                        x[19] == 0xB4) {
-                // Operating state associated with fan running.
-                id(rc400_fan_running_state) = 1;
-              }
-
-            } else {
-
-              // Fireplace OFF.
-              if (!fan_speed_set) {
-                // Fan reached zero: cooldown has completed.
-                id(rc400_fan_cooldown_complete) = true;
-                id(rc400_fan_running_state) = 0;
-
-              } else if (id(rc400_fan_cooldown_complete)) {
-                // Fan speed was changed after cooldown.
-                // Do not infer that the blower restarted.
-                id(rc400_fan_running_state) = 0;
-
-              } else {
-                // During shutdown/cooldown, preserve the
-                // previously established running state.
-                // If unknown after reboot, remain unknown.
-              }
-            }
+            // Stateful physical fan inference (existing cooldown heuristic).
+            rc400::update_fan_state(id(rc400_fan_running_state),
+                                    id(rc400_fan_cooldown_complete),
+                                    x[12], x[14], x[19]);
 
             // Publish only when a state is established.
             if (id(rc400_fan_running_state) >= 0) {
-              publish_binary(id(rc400_fan_running),
+              rc400::publish_binary_if_changed(id(rc400_fan_running),
                              id(rc400_fan_running_state) == 1);
             } else {
               if (id(rc400_fan_running).has_state())
@@ -244,9 +193,8 @@ sx126x:
                 "Off", "Level 1", "Level 2", "Level 3", "Level 4"
               };
 
-              if ((!id(rc400_fan_control).has_state() ||
-                  id(rc400_fan_control).current_option() != fan_options[x[14]]))
-                id(rc400_fan_control).publish_state(fan_options[x[14]]);
+              rc400::publish_select_if_changed(id(rc400_fan_control),
+                                               fan_options[x[14]]);
             }
 
             if (x[12] >= 1 && x[12] <= 5) {
@@ -255,9 +203,8 @@ sx126x:
                 "Level 4", "Level 5"
               };
 
-              if ((!id(rc400_flame_control).has_state() ||
-                  id(rc400_flame_control).current_option() != flame_options[x[12] - 1]))
-                id(rc400_flame_control).publish_state(flame_options[x[12] - 1]);
+              rc400::publish_select_if_changed(id(rc400_flame_control),
+                                               flame_options[x[12] - 1]);
             }
 
 
