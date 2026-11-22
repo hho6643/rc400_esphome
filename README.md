@@ -42,7 +42,7 @@ Almost certainly, this won't work exactly as is for another fireplace/remote com
 
 # File Layout
 
-- `rc400_esphome.yaml`: RC400 radio parameters, packet handler, sensors, controls, state machine, and automations. Retains the same entity IDs and RF behavior as Step 3.
+- `rc400_esphome.yaml`: RC400 radio parameters, packet handler, sensors, controls, state machine, and automations. 
 - `rc400_protocol.h`, `rc400_state.h`: header files that handle transmission, state decoding, etc
 - `rc400_local_example.yaml`: example **local** main ESPHome configuration. 
 
