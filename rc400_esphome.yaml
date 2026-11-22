@@ -37,8 +37,40 @@ time:
   - platform: homeassistant
     id: rc400_clock
 
+# Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064)
+# Hardware-only configuration. The core package supplies SX1262 RF settings
+# and on_packet automation using the matching sx126x_1 ID.
+esp32:
+  board: seeed_xiao_esp32s3
+  framework:
+    type: esp-idf
+
+spi:
+  - id: spi_1
+    clk_pin: GPIO7
+    miso_pin: GPIO8
+    mosi_pin: GPIO9
+
+switch:  # needed this for the antenna switch to work on the Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064)
+  - platform: gpio
+    name: "SX1262 Antenna Switch"
+    id: sx1262_antenna_switch
+    pin: GPIO38
+    restore_mode: ALWAYS_ON
+    internal: true
+
 sx126x:
   - id: sx126x_1
+    spi_id: spi_1
+    hw_version: sx1262
+    busy_pin: GPIO40
+    cs_pin: GPIO41
+    dio1_pin: GPIO39
+    rst_pin: GPIO42
+    rf_switch: true
+    tcxo_voltage: 2_4V
+    tcxo_delay: 5ms
+  
     modulation: FSK
     frequency: 913.2MHz
     bitrate: 25000
