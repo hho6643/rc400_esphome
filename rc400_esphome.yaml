@@ -3,9 +3,34 @@ substitutions:
   rc400_external_temperature_entity: sensor.rc400_external_temperature
 
 esphome:
+  name: rc400-receiver
+  friendly_name: RC400 Receiver
   includes:
     - rc400_protocol.h
     - rc400_state.h
+
+esp32:
+  board: seeed_xiao_esp32s3
+  framework:
+    type: esp-idf
+
+logger:
+  level: INFO
+  
+ota:
+  - platform: esphome
+    encryption:
+    id: ota_esphome_1  
+    
+api:
+  encryption:
+    key: !secret rc400_receiver__encryption_key
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+
 
 globals:
   - id: rc400_last_broadcast_ms
