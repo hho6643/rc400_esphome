@@ -123,7 +123,7 @@ After restoring the original address, the fireplace responded normally.
 
 **Conclusion:** The fireplace checks at least some portion of the remote source address when deciding whether to accept commands.
 
-This supports the hypothesis that device addresses participate in the pairing mechanism. It does not yet prove that all four bytes are checked or that no additional pairing information is involved.
+This supports the hypothesis that device addresses participate in the pairing mechanism. It does not yet prove that all four bytes are checked or that no additional pairing information is involved.  If we are very lucky, and can find someone else to test & confirm, the fireplace source & destination may be the *ony* thing that makes the pairing 'unique', and therefore very easy to capture & replicate for new fireplace/remote combos.
 
 ---
 
@@ -179,7 +179,7 @@ The ESPHome implementation uses internal command ID `0B` for power control, but 
 - **Power:** `00` = Off; `05` = On.
 - **Timer:** `00–B4` = 0–180 minutes.
 - **Cold climate pilot:** `00` = Off; `01` = On.
-- **Thermostat:** `00` = Disabled; `06–1A` = 6–26°C setpoint.
+- **Thermostat:** `00` = Disabled; `06–1A` = 6–26°C setpoint.  The remote supports a higher setpoint, we've deliberately capped it at 26°C in this implementation.  If you want to loosen the constraint, have at it.
 
 ### Byte 18 — Minute-related field
 
@@ -241,7 +241,7 @@ Examples:
 | 22°C | `16` |
 | 25°C | `19` |
 
-The current transmitter accepts temperatures from **4°C to 38°C**, rounded to the nearest integer.
+The current transmitter accepts temperatures from **4°C to 38°C**, rounded to the nearest integer.  
 
 Temperatures outside that range are rejected rather than silently clamped.
 
@@ -386,7 +386,6 @@ This checksum detects many transmission errors, but it is **not a cryptographic 
 - The meaning of all currently unidentified packet bytes.
 - Whether the fireplace sends a separate acknowledgment packet.
 - Whether different firmware versions use additional packet formats.
-- Whether multiple remotes can be paired with one fireplace.
 
 ## 8. Planned Protocol Discovery — Seek Mode
 
