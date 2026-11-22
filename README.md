@@ -13,9 +13,7 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 * Timer on / off & timer setting
 * Cold climate control on / off
 * Thermostat on / off  & temperature set point
-
-# What it will send
-* Room temperature broadcast from something that isn't the RC400
+* Room temperature broadcast from something that isn't the RC400 - I'm using a SwitchBot BLE thermometer
 
 # What it does receive
 * Current fireplace on / off status
@@ -29,9 +27,7 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 * Timer status
 * Remaining time on timer
 * "HOT" status from fireplace
-
-# What it will receive
-* Fan status (still a little buggy)
+* Fan on/off status (still might be a little buggy)
 
 # What's been used
 * Heat & Glo I35 Natural Gas Insert 
@@ -47,8 +43,7 @@ Almost certainly, this won't work exactly as is for another fireplace/remote com
 # File Layout
 
 - `rc400_esphome.yaml`: RC400 radio parameters, packet handler, sensors, controls, state machine, and automations. Retains the same entity IDs and RF behavior as Step 3.
-- `boards/seeed_xiao_esp32s3_wio_sx1262.yaml`: board selection, SPI pins, SX1262 hardware pins, TCXO, and GPIO38 antenna switch.
 - `rc400_protocol.h`, `rc400_state.h`: header files that handle transmission, state decoding, etc
-- `rc400_receiver_example.yaml`: example **local** main ESPHome configuration. 
+- `rc400_local_example.yaml`: example **local** main ESPHome configuration. 
 
 #
