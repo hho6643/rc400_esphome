@@ -55,12 +55,18 @@ inline bool fireplace_broadcast(const std::vector<uint8_t> &packet) {
          packet[9] == 0x9A && packet[10] == 0x0E;
 }
 
+inline bool is_valid_command(int command, int value);
+
+
 // Internal command identifiers and RF command bytes are deliberately distinct.
 // 0x0B (power) transmits RF command 0x0A, as in the original implementation.
 inline std::vector<uint8_t> build_command(int command, int value,
                                           uint8_t minute,
                                           const Address &remote = kRemoteAddress,
                                           const Address &fireplace = kFireplaceAddress) {
+
+  if (!is_valid_command(command, value))
+    return {};
   std::vector<uint8_t> packet(kPacketLength, 0);
   packet[0] = 0x03;
   write_address(packet, 1, remote);
