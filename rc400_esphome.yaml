@@ -9,6 +9,7 @@ esphome:
     - rc400_protocol.h
     - rc400_state.h
 
+# configured for Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064), customize as you need to
 esp32:
   board: seeed_xiao_esp32s3
   framework:
@@ -21,77 +22,18 @@ ota:
   - platform: esphome
     encryption:
     id: ota_esphome_1  
-    
+
+# add your own secret key here
 api:
   encryption:
     key: !secret rc400_receiver__encryption_key
 
+# add your own wifi SSID & password here
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
-
-
-globals:
-  - id: rc400_last_broadcast_ms
-    type: uint32_t
-    restore_value: no
-    initial_value: '0'
-
-  - id: rc400_saved_thermostat_c
-    type: int
-    restore_value: true
-    initial_value: '22'
-
-  # Last inferred physical fan state:
-  # -1 = Unknown, 0 = Stopped, 1 = Running
-  - id: rc400_fan_running_state
-    type: int
-    restore_value: no
-    initial_value: '-1'
-
-  # Latches true once the fan has stopped during
-  # an OFF cycle. Prevents speed changes from
-  # falsely indicating that the fan restarted.
-  - id: rc400_fan_cooldown_complete
-    type: bool
-    restore_value: no
-    initial_value: 'false'
-   
-time:
-  - platform: homeassistant
-    id: rc400_clock
-
-
-
-switch:  # needed this for the antenna switch to work on the Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064)
-  - platform: gpio
-    name: "SX1262 Antenna Switch"
-    id: sx1262_antenna_switch
-    pin: GPIO38
-    restore_mode: ALWAYS_ON
-    internal: true
-
-  - platform: template
-    name: "Cold Climate Pilot Control"
-    id: rc400_cold_climate_control
-    icon: mdi:candle
-    optimistic: false
-
-    turn_on_action:
-      - script.execute:
-          id: rc400_send_command
-          command: 0x09
-          value: 1
-
-    turn_off_action:
-      - script.execute:
-          id: rc400_send_command
-          command: 0x09
-          value: 0
-
-
-# Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064)
+# Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064) configuration
 
 spi:
   - id: spi_1
@@ -126,8 +68,7 @@ sx126x:
     whitening_enable: false
     rx_start: true
 
-
-
+    # code that drives most of the RC400 functionality, including the fireplace state machine and command encoding
     on_packet:
       then:
         - lambda: |-
@@ -260,8 +201,64 @@ sx126x:
                      x[12], x[14], x[11], x[13],
                      x[18], x[20], x[19], rssi);
 
+# Home Assistant package configuration for the RC400 ESPHome integration.
 
+switch:  
+  - platform: gpio
+    # needed this for the antenna switch to work on the Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064)
+    name: "SX1262 Antenna Switch"
+    id: sx1262_antenna_switch
+    pin: GPIO38
+    restore_mode: ALWAYS_ON
+    internal: true
 
+  - platform: template
+    name: "Cold Climate Pilot Control"
+    id: rc400_cold_climate_control
+    icon: mdi:candle
+    optimistic: false
+
+    turn_on_action:
+      - script.execute:
+          id: rc400_send_command
+          command: 0x09
+          value: 1
+
+    turn_off_action:
+      - script.execute:
+          id: rc400_send_command
+          command: 0x09
+          value: 0
+
+globals:
+  - id: rc400_last_broadcast_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  - id: rc400_saved_thermostat_c
+    type: int
+    restore_value: true
+    initial_value: '22'
+
+  # Last inferred physical fan state:
+  # -1 = Unknown, 0 = Stopped, 1 = Running
+  - id: rc400_fan_running_state
+    type: int
+    restore_value: no
+    initial_value: '-1'
+
+  # Latches true once the fan has stopped during
+  # an OFF cycle. Prevents speed changes from
+  # falsely indicating that the fan restarted.
+  - id: rc400_fan_cooldown_complete
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+   
+time:
+  - platform: homeassistant
+    id: rc400_clock
 
 
 button:
