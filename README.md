@@ -19,6 +19,7 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 * Current fireplace on / off status
 * Current Cold Climate Pilot light status
 * Current fan speed from fireplace 
+* Fan on/off status (still might be a little buggy)
 * "3 min fan delay for warmup" message from fireplace
 * Current flame height from fireplace
 * RC400 broadcast room temperature
@@ -27,7 +28,6 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 * Timer status
 * Remaining time on timer
 * "HOT" status from fireplace
-* Fan on/off status (still might be a little buggy)
 
 # What's been used
 * Heat & Glo I35 Natural Gas Insert 
