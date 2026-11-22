@@ -1,8 +1,6 @@
 substitutions:
   # Override in your main YAML or point at an HA template sensor.
   rc400_external_temperature_entity: sensor.rc400_external_temperature
-  rc400_frequency: 913.2MHz
-
 
 esphome:
   name: rc400-receiver
@@ -56,7 +54,7 @@ sx126x:
     tcxo_delay: 5ms
   
     modulation: FSK
-    frequency: ${rc400_frequency}
+    frequency: 913.2MHz
     bitrate: 25000
     deviation: 50kHz
     bandwidth: 234_3kHz
@@ -74,6 +72,56 @@ sx126x:
     on_packet:
       then:
         - lambda: |-
+            // Seek packets are handled independently of configured addresses.
+            // Never update normal fireplace state while the receiver is scanning.
+            if (id(rc400_seek_active)) {
+              if (!rc400::valid_packet(x)) return;
+              const int ch = id(rc400_seek_channel);
+              char addr[12], dest[12];
+              snprintf(addr, sizeof(addr), "%02X %02X %02X %02X",
+                       x[1], x[2], x[3], x[4]);
+              snprintf(dest, sizeof(dest), "%02X %02X %02X %02X",
+                       x[5], x[6], x[7], x[8]);
+              if (x[9] == 0x9A && x[10] == 0x0E &&
+                  x[5] == 0xFF && x[6] == 0xFF &&
+                  x[7] == 0xFF && x[8] == 0xFF) {
+                ESP_LOGI("rc400_seek", "Fireplace candidate: channel %d, %s, RSSI %.1f",
+                         ch, addr, rssi);
+                // Choose strongest valid fireplace packet across all channels.
+                if (rssi > id(rc400_seek_best_rssi)) {
+                  id(rc400_seek_best_rssi) = rssi;
+                  id(rc400_seek_best_channel) = ch;
+                  id(rc400_seek_fireplace_addr) = addr;
+                  id(rc400_seek_fireplace_hex) =
+                      (uint32_t(x[1]) << 24) | (uint32_t(x[2]) << 16) |
+                      (uint32_t(x[3]) << 8) | uint32_t(x[4]);
+                  id(rc400_seek_found_fireplace) = true;
+                  if (id(rc400_seek_remote_dest_hex) != id(rc400_seek_fireplace_hex)) {
+                    id(rc400_seek_remote_addr).clear();
+                    id(rc400_seek_remote_address).publish_state("Not discovered");
+                  }
+                  id(rc400_seek_fireplace_address).publish_state(addr);
+                  id(rc400_seek_channel_sensor).publish_state(ch);
+                  id(rc400_seek_frequency_sensor).publish_state(912.0f + ch * 0.2f);
+                }
+              } else if (x[9] == 0x26 && x[10] == 0x0A) {
+                ESP_LOGI("rc400_seek", "Remote temperature candidate: channel %d, %s -> %s",
+                         ch, addr, dest);
+                // Save a remote candidate only if its destination is the
+                // currently selected fireplace (or defer matching until later).
+                const uint32_t remote_dest =
+                    (uint32_t(x[5]) << 24) | (uint32_t(x[6]) << 16) |
+                    (uint32_t(x[7]) << 8) | uint32_t(x[8]);
+                if (!id(rc400_seek_found_fireplace) ||
+                    remote_dest == id(rc400_seek_fireplace_hex)) {
+                  id(rc400_seek_remote_addr) = addr;
+                  id(rc400_seek_remote_dest_hex) = remote_dest;
+                  if (id(rc400_seek_found_fireplace))
+                    id(rc400_seek_remote_address).publish_state(addr);
+                }
+              }
+              return;
+            }
             if (x.size() != rc400::kPacketLength) {
               ESP_LOGW("rc400", "Wrong packet length: %u", (unsigned) x.size());
               return;
@@ -233,6 +281,47 @@ switch:
           value: 0
 
 globals:
+  - id: rc400_seek_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: rc400_seek_channel
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: rc400_seek_channel_started
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: rc400_seek_best_channel
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: rc400_seek_best_rssi
+    type: float
+    restore_value: no
+    initial_value: '-1000.0f'
+  - id: rc400_seek_found_fireplace
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: rc400_seek_fireplace_addr
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: rc400_seek_fireplace_hex
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: rc400_seek_remote_addr
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: rc400_seek_remote_dest_hex
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
   - id: rc400_last_broadcast_ms
     type: uint32_t
     restore_value: no
@@ -264,6 +353,56 @@ time:
 
 
 button:
+  - platform: template
+    name: "RC400 Start Seek"
+    id: rc400_seek_button
+    icon: mdi:radar
+    entity_category: diagnostic
+    on_press:
+      - if:
+          condition:
+            lambda: 'return !id(rc400_seek_active);'
+          then:
+            - script.stop: rc400_send_command
+            - lambda: |-
+                id(rc400_seek_active) = true;
+                id(rc400_seek_channel) = 1;
+                id(rc400_seek_channel_started) = millis();
+                id(rc400_seek_best_channel) = 0;
+                id(rc400_seek_best_rssi) = -1000.0f;
+                id(rc400_seek_found_fireplace) = false;
+                id(rc400_seek_fireplace_addr).clear();
+                id(rc400_seek_fireplace_hex) = 0;
+                id(rc400_seek_remote_addr).clear();
+                id(rc400_seek_remote_dest_hex) = 0;
+                id(rc400_seek_status).publish_state("Scanning channel 1 of 30");
+                id(rc400_seek_fireplace_address).publish_state("Not discovered");
+                id(rc400_seek_remote_address).publish_state("Not discovered");
+                id(rc400_seek_channel_sensor).publish_state(NAN);
+                id(rc400_seek_frequency_sensor).publish_state(NAN);
+                id(sx126x_1)->set_frequency(912200000UL);
+                id(sx126x_1)->configure();
+                id(sx126x_1)->set_mode_rx();
+                ESP_LOGI("rc400_seek", "Seek started: channels 1-30, 5 seconds/channel");
+
+  - platform: template
+    name: "RC400 Stop Seek"
+    id: rc400_seek_stop_button
+    icon: mdi:stop
+    entity_category: diagnostic
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(rc400_seek_active);'
+          then:
+            - lambda: |-
+                id(rc400_seek_active) = false;
+                id(sx126x_1)->set_frequency(913200000UL);
+                id(sx126x_1)->configure();
+                id(sx126x_1)->set_mode_rx();
+                id(rc400_seek_status).publish_state("Cancelled");
+                ESP_LOGI("rc400_seek", "Seek cancelled; restored 913.2 MHz");
+
   - platform: template
     name: "Fireplace Power"
     id: rc400_power_button
@@ -414,6 +553,19 @@ number:
 
 
 sensor:
+  - platform: template
+    name: "RC400 Seek Channel"
+    id: rc400_seek_channel_sensor
+    entity_category: diagnostic
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "RC400 Seek Frequency"
+    id: rc400_seek_frequency_sensor
+    entity_category: diagnostic
+    unit_of_measurement: "MHz"
+    accuracy_decimals: 1
+
   # Read a Home Assistant entity (or a template combining multiple sensors).
   - platform: homeassistant
     id: rc400_external_temperature
@@ -481,6 +633,22 @@ sensor:
     icon: mdi:wifi-strength-1
     accuracy_decimals: 1
 
+
+text_sensor:
+  - platform: template
+    name: "RC400 Seek Status"
+    id: rc400_seek_status
+    entity_category: diagnostic
+
+  - platform: template
+    name: "RC400 Seek Fireplace Address"
+    id: rc400_seek_fireplace_address
+    entity_category: diagnostic
+
+  - platform: template
+    name: "RC400 Seek Remote Address"
+    id: rc400_seek_remote_address
+    entity_category: diagnostic
 
 binary_sensor:
   - platform: template
@@ -593,7 +761,7 @@ script:
       - if:
           condition:
             lambda: |-
-              return rc400::is_valid_command(command, value);
+              return !id(rc400_seek_active) && rc400::is_valid_command(command, value);
           then:
             - logger.log:
                 format: "RC400: Command 0x%02X, value %d"
@@ -602,27 +770,71 @@ script:
             - repeat:
                 count: 2
                 then:
-                  - sx126x.send_packet:
-                      id: sx126x_1
-                      data: !lambda |-
-                        // default to 0 if we don't have a valid minute
-                        const auto now = id(rc400_clock).now();
-                        const uint8_t minute = now.is_valid()
-                            ? static_cast<uint8_t>(now.minute)
-                            : 0;
 
-                        return rc400::build_command(command, value, minute);
+ 
+                  - if:
+                      condition:
+                        lambda: 'return !id(rc400_seek_active);'
+                      then:
+                        - sx126x.send_packet:
+                            id: sx126x_1
+                            data: !lambda |-
+                              // default to 0 if we don't have a valid minute
+                              const auto now = id(rc400_clock).now();
+                              const uint8_t minute = now.is_valid()
+                                  ? static_cast<uint8_t>(now.minute)
+                                  : 0;
+      
+                              return rc400::build_command(command, value, minute);
                   - delay: 60ms
           else:
             - logger.log:
                 level: WARN
-                format: "RC400: Invalid command 0x%02X, value %d"
+                format: "RC400: Command 0x%02X, value %d invalid or blocked during Seek"
                 args: ['command', 'value']
 
 interval:
+  - interval: 100ms
+    then:
+      - lambda: |-
+          if (!id(rc400_seek_active)) return;
+          if ((uint32_t)(millis() - id(rc400_seek_channel_started)) < 5000U) return;
+          if (id(rc400_seek_channel) >= 30) {
+            id(rc400_seek_active) = false;
+            id(sx126x_1)->set_frequency(913200000UL);
+            id(sx126x_1)->configure();
+            id(sx126x_1)->set_mode_rx();
+            if (id(rc400_seek_found_fireplace)) {
+              if (id(rc400_seek_remote_dest_hex) == id(rc400_seek_fireplace_hex) &&
+                  !id(rc400_seek_remote_addr).empty())
+                id(rc400_seek_remote_address).publish_state(id(rc400_seek_remote_addr));
+              id(rc400_seek_status).publish_state("Completed - fireplace found");
+              ESP_LOGI("rc400_seek", "Found fireplace %s on channel %d (%.1f MHz), remote candidate %s",
+                       id(rc400_seek_fireplace_addr).c_str(), id(rc400_seek_best_channel),
+                       912.0f + 0.2f * id(rc400_seek_best_channel),
+                       id(rc400_seek_remote_addr).empty() ? "not discovered" : id(rc400_seek_remote_addr).c_str());
+            } else {
+              id(rc400_seek_status).publish_state("Completed - no fireplace found");
+              ESP_LOGW("rc400_seek", "No valid fireplace status packets found");
+            }
+            return;
+          }
+          ++id(rc400_seek_channel);
+          const int ch = id(rc400_seek_channel);
+          const uint32_t freq = 912000000UL + 200000UL * ch;
+          id(sx126x_1)->set_frequency(freq);
+          id(sx126x_1)->configure();
+          id(sx126x_1)->set_mode_rx();
+          id(rc400_seek_channel_started) = millis();
+          char status[48];
+          snprintf(status, sizeof(status), "Scanning channel %d of 30", ch);
+          id(rc400_seek_status).publish_state(status);
+          ESP_LOGI("rc400_seek", "Scanning channel %d: %.1f MHz", ch, freq / 1000000.0f);
+
   - interval: 5s
     then:
       - lambda: |-
+          if (id(rc400_seek_active)) return;
           const bool fresh =
               id(rc400_last_broadcast_ms) != 0 &&
               (uint32_t)(millis() -
@@ -657,7 +869,8 @@ interval:
       - if:
           condition:
             lambda: |-
-              return id(rc400_temperature_source).current_option() == "External Sensor" &&
+              return !id(rc400_seek_active) &&
+                     id(rc400_temperature_source).current_option() == "External Sensor" &&
                      id(rc400_external_temperature).has_state() &&
                      !isnan(id(rc400_external_temperature).state);
           then:
