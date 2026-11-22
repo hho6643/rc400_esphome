@@ -42,3 +42,13 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 
 # What is needed
 Almost certainly, this won't work exactly as is for another fireplace/remote combo.  The manuals say the remote needs to pair with the fireplace, and that the pairing is unique.  That's also the case with the RC300 remotes.  For those remotes, having a couple examples of different remotes routine transmissions made it possible to figure out the algorithm by which the remote pairing is unique.  Since I only have the 1 fireplace & 1 remote, I can't do that.  Any contributors who can provide some captures from their own systems would be welcome.
+
+
+# File Layout
+
+- `rc400_esphome.yaml`: RC400 radio parameters, packet handler, sensors, controls, state machine, and automations. Retains the same entity IDs and RF behavior as Step 3.
+- `boards/seeed_xiao_esp32s3_wio_sx1262.yaml`: board selection, SPI pins, SX1262 hardware pins, TCXO, and GPIO38 antenna switch.
+- `rc400_protocol.h`, `rc400_state.h`: header files that handle transmission, state decoding, etc
+- `rc400_receiver_example.yaml`: example **local** main ESPHome configuration. 
+
+#

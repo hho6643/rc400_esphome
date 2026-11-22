@@ -1,0 +1,32 @@
+# Example local configuration. For GitHub packages, replace the two !include
+# entries with your existing github package references to these YAML files.
+esphome:
+  name: rc400-receiver
+  friendly_name: RC400 Receiver
+
+logger:
+  level: INFO
+
+ota:
+  - platform: esphome
+    encryption:
+    id: ota_esphome_1  
+    
+api:
+  encryption:
+    key: !secret rc400_receiver__encryption_key #define your own key here
+
+wifi:
+  ssid: !secret wifi_ssid.                     #add your own wifi ssid and password 
+  password: !secret wifi_password
+
+packages:
+  rc400:
+    url: https://github.com/hho6643/rc400_esphome
+    ref: main
+    files:
+      - rc400_esphome.yaml
+      - boards/seeed_xiao_esp32s3_wio_sx1262.yaml
+    refresh: 5sec
+
+
