@@ -47,6 +47,24 @@ switch:  # needed this for the antenna switch to work on the Seeed Studio XIAO E
     restore_mode: ALWAYS_ON
     internal: true
 
+  - platform: template
+    name: "Cold Climate Pilot Control"
+    id: rc400_cold_climate_control
+    icon: mdi:candle
+    optimistic: false
+
+    turn_on_action:
+      - script.execute:
+          id: rc400_send_command
+          command: 0x09
+          value: 1
+
+    turn_off_action:
+      - script.execute:
+          id: rc400_send_command
+          command: 0x09
+          value: 0
+
 
 # Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064)
 
@@ -219,24 +237,6 @@ sx126x:
 
 
 
-switch:
-  - platform: template
-    name: "Cold Climate Pilot Control"
-    id: rc400_cold_climate_control
-    icon: mdi:candle
-    optimistic: false
-
-    turn_on_action:
-      - script.execute:
-          id: rc400_send_command
-          command: 0x09
-          value: 1
-
-    turn_off_action:
-      - script.execute:
-          id: rc400_send_command
-          command: 0x09
-          value: 0
 
 
 button:
