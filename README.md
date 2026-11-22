@@ -123,7 +123,7 @@ After restoring the original address, the fireplace responded normally.
 
 **Conclusion:** The fireplace checks at least some portion of the remote source address when deciding whether to accept commands.
 
-This supports the hypothesis that device addresses participate in the pairing mechanism. It does not yet prove that all four bytes are checked or that no additional pairing information is involved.  If we are very lucky, and can find someone else to test & confirm, the fireplace source & destination may be the *ony* thing that makes the pairing 'unique', and therefore very easy to capture & replicate for new fireplace/remote combos.
+This supports the hypothesis that device addresses participate in the pairing mechanism. It does not yet prove that all four bytes are checked or that no additional pairing information is involved.  If we are very lucky, and can find someone else to test & confirm, the fireplace source & destination may be the *only* thing that makes the pairing 'unique', and therefore very easy to capture & replicate for new fireplace/remote combos.
 
 ---
 
