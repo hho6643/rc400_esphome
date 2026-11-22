@@ -2,6 +2,10 @@
 esphome:
   area: Kitchen
 
+# Optional: override package defaults
+# substitutions:
+#   rc400_external_temperature_entity: sensor.kitchen_temperature
+
 packages:
   rc400:
     url: https://github.com/hho6643/rc400_esphome
