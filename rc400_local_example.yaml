@@ -1,29 +1,6 @@
-# example configuration forBoard: XIAO ESP32S# & Wio-SX1262 Kit from Seeed Studio, SKU #113110064
+# I use this in ESP Device Builder to pull from github. Obviously add your own area for where this device lives.
 esphome:
-  name: rc400-receiver
-  friendly_name: RC400 Receiver
   area: Kitchen
-
-esp32:
-  board: seeed_xiao_esp32s3
-  framework:
-    type: esp-idf
-
-logger:
-  level: INFO
-  
-ota:
-  - platform: esphome
-    encryption:
-    id: ota_esphome_1  
-    
-api:
-  encryption:
-    key: !secret rc400_receiver__encryption_key. # add your own key here 
-
-wifi:
-  ssid: !secret wifi_ssid                       # add your own wifi ssid here
-  password: !secret wifi_password               # add your own wifi password here
 
 packages:
   rc400:
