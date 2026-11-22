@@ -38,12 +38,6 @@ time:
     id: rc400_clock
 
 # Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064)
-# Hardware-only configuration. The core package supplies SX1262 RF settings
-# and on_packet automation using the matching sx126x_1 ID.
-esp32:
-  board: seeed_xiao_esp32s3
-  framework:
-    type: esp-idf
 
 spi:
   - id: spi_1
