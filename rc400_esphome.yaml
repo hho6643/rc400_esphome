@@ -591,14 +591,8 @@ script:
       - if:
           condition:
             lambda: |-
-              return id(rc400_clock).now().is_valid() && (
-                (command == 0x10 && value >= 0 && value <= 4) ||
-                (command == 0x0A && value >= 1 && value <= 5) ||
-                (command == 0x0B && (value == 0 || value == 1)) ||
-                (command == 0x22 && value >= 0 && value <= 180) ||
-                (command == 0x25 && (value == 0 || (value >= 6 && value <= 26))) ||
-                (command == 0x09 && (value == 0 || value == 1)) ||
-                (command == 0x26 && value >= 4 && value <= 38));
+              return id(rc400_clock).now().is_valid() &&
+                    rc400::is_valid_command(command, value);
           then:
             - logger.log:
                 format: "RC400: Command 0x%02X, value %d"

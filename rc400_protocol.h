@@ -111,4 +111,18 @@ inline std::vector<uint8_t> build_command(int command, int value,
   return packet;
 }
 
+inline bool is_valid_command(int command, int value) {
+  switch (command) {
+    case 0x10: return value >= 0 && value <= 4;
+    case 0x0A: return value >= 1 && value <= 5;
+    case 0x0B: return value == 0 || value == 1;
+    case 0x22: return value >= 0 && value <= 180;
+    case 0x25: return value == 0 || (value >= 6 && value <= 26);
+    case 0x09: return value == 0 || value == 1;
+    case 0x26: return value >= 4 && value <= 38;
+    default: return false;
+  }
+}
+
+
 } // namespace rc400
