@@ -88,7 +88,8 @@ sx126x:
                 ESP_LOGI("rc400_seek", "Fireplace candidate: channel %d, %s, RSSI %.1f",
                          ch, addr, rssi);
                 // Choose strongest valid fireplace packet across all channels.
-                if (rssi > id(rc400_seek_best_rssi)) {
+                if (id(rc400_seek_phase) == 1 &&
+                    rssi > id(rc400_seek_best_rssi)) {
                   id(rc400_seek_best_rssi) = rssi;
                   id(rc400_seek_best_channel) = ch;
                   id(rc400_seek_fireplace_addr) = addr;
@@ -104,20 +105,35 @@ sx126x:
                   id(rc400_seek_channel_sensor).publish_state(ch);
                   id(rc400_seek_frequency_sensor).publish_state(912.0f + ch * 0.2f);
                 }
-              } else if (x[9] == 0x26 && x[10] == 0x0A) {
-                ESP_LOGI("rc400_seek", "Remote temperature candidate: channel %d, %s -> %s",
+              } else if ((x[9] == 0x26 && x[10] == 0x0A) ||
+                         (x[0] == 0x03 && x[10] == 0x05 &&
+                          (x[9] == 0x09 || x[9] == 0x0A ||
+                           x[9] == 0x10 || x[9] == 0x22 ||
+                           x[9] == 0x25))) {
+                ESP_LOGI("rc400_seek", "Remote packet candidate: channel %d, %s -> %s",
                          ch, addr, dest);
                 // Save a remote candidate only if its destination is the
                 // currently selected fireplace (or defer matching until later).
                 const uint32_t remote_dest =
                     (uint32_t(x[5]) << 24) | (uint32_t(x[6]) << 16) |
                     (uint32_t(x[7]) << 8) | uint32_t(x[8]);
-                if (!id(rc400_seek_found_fireplace) ||
-                    remote_dest == id(rc400_seek_fireplace_hex)) {
+                if (id(rc400_seek_found_fireplace) &&
+                    remote_dest == id(rc400_seek_fireplace_hex) &&
+                    (id(rc400_seek_phase) == 2 ||
+                     ch == id(rc400_seek_best_channel))) {
                   id(rc400_seek_remote_addr) = addr;
                   id(rc400_seek_remote_dest_hex) = remote_dest;
-                  if (id(rc400_seek_found_fireplace))
-                    id(rc400_seek_remote_address).publish_state(addr);
+                  id(rc400_seek_remote_address).publish_state(addr);
+                  if (id(rc400_seek_phase) == 2) {
+                    id(rc400_seek_active) = false;
+                    id(rc400_seek_phase) = 0;
+                    id(sx126x_1)->set_frequency(913200000UL);
+                    id(sx126x_1)->configure();
+                    id(sx126x_1)->set_mode_rx();
+                    id(rc400_seek_status).publish_state("Complete - remote found");
+                    ESP_LOGI("rc400_seek", "Remote %s matched fireplace %s; restored receiver",
+                             addr, id(rc400_seek_fireplace_addr).c_str());
+                  }
                 }
               }
               return;
@@ -281,6 +297,11 @@ switch:
           value: 0
 
 globals:
+  # 0 = idle, 1 = frequency sweep, 2 = remote discovery
+  - id: rc400_seek_phase
+    type: int
+    restore_value: no
+    initial_value: '0'
   - id: rc400_seek_active
     type: bool
     restore_value: no
@@ -366,6 +387,7 @@ button:
             - script.stop: rc400_send_command
             - lambda: |-
                 id(rc400_seek_active) = true;
+                id(rc400_seek_phase) = 1;
                 id(rc400_seek_channel) = 1;
                 id(rc400_seek_channel_started) = millis();
                 id(rc400_seek_best_channel) = 0;
@@ -397,6 +419,7 @@ button:
           then:
             - lambda: |-
                 id(rc400_seek_active) = false;
+                id(rc400_seek_phase) = 0;
                 id(sx126x_1)->set_frequency(913200000UL);
                 id(sx126x_1)->configure();
                 id(sx126x_1)->set_mode_rx();
@@ -798,23 +821,46 @@ interval:
     then:
       - lambda: |-
           if (!id(rc400_seek_active)) return;
-          if ((uint32_t)(millis() - id(rc400_seek_channel_started)) < 5000U) return;
-          if (id(rc400_seek_channel) >= 30) {
+          const uint32_t elapsed = (uint32_t)(millis() - id(rc400_seek_channel_started));
+          if (id(rc400_seek_phase) == 2) {
+            if (elapsed < 60000U) return;
             id(rc400_seek_active) = false;
+            id(rc400_seek_phase) = 0;
             id(sx126x_1)->set_frequency(913200000UL);
             id(sx126x_1)->configure();
             id(sx126x_1)->set_mode_rx();
-            if (id(rc400_seek_found_fireplace)) {
-              if (id(rc400_seek_remote_dest_hex) == id(rc400_seek_fireplace_hex) &&
-                  !id(rc400_seek_remote_addr).empty())
-                id(rc400_seek_remote_address).publish_state(id(rc400_seek_remote_addr));
-              id(rc400_seek_status).publish_state("Completed - fireplace found");
-              ESP_LOGI("rc400_seek", "Found fireplace %s on channel %d (%.1f MHz), remote candidate %s",
-                       id(rc400_seek_fireplace_addr).c_str(), id(rc400_seek_best_channel),
-                       912.0f + 0.2f * id(rc400_seek_best_channel),
-                       id(rc400_seek_remote_addr).empty() ? "not discovered" : id(rc400_seek_remote_addr).c_str());
+            id(rc400_seek_status).publish_state("Complete - remote not discovered");
+            ESP_LOGI("rc400_seek", "Remote discovery timed out; restored receiver");
+            return;
+          }
+          if (elapsed < 5000U) return;
+          if (id(rc400_seek_channel) >= 30) {
+            if (id(rc400_seek_found_fireplace) &&
+                !id(rc400_seek_remote_addr).empty()) {
+              id(rc400_seek_active) = false;
+              id(rc400_seek_phase) = 0;
+              id(sx126x_1)->set_frequency(913200000UL);
+              id(sx126x_1)->configure();
+              id(sx126x_1)->set_mode_rx();
+              id(rc400_seek_status).publish_state("Complete - remote found");
+            } else if (id(rc400_seek_found_fireplace)) {
+              id(rc400_seek_phase) = 2;
+              id(rc400_seek_channel) = id(rc400_seek_best_channel);
+              const uint32_t freq = 912000000UL + 200000UL * id(rc400_seek_best_channel);
+              id(sx126x_1)->set_frequency(freq);
+              id(sx126x_1)->configure();
+              id(sx126x_1)->set_mode_rx();
+              id(rc400_seek_channel_started) = millis();
+              id(rc400_seek_status).publish_state("Waiting for remote - press a button");
+              ESP_LOGI("rc400_seek", "Fireplace %s on channel %d; press physical remote now (60s)",
+                       id(rc400_seek_fireplace_addr).c_str(), id(rc400_seek_best_channel));
             } else {
-              id(rc400_seek_status).publish_state("Completed - no fireplace found");
+              id(rc400_seek_active) = false;
+              id(rc400_seek_phase) = 0;
+              id(sx126x_1)->set_frequency(913200000UL);
+              id(sx126x_1)->configure();
+              id(sx126x_1)->set_mode_rx();
+              id(rc400_seek_status).publish_state("Complete - no fireplace found");
               ESP_LOGW("rc400_seek", "No valid fireplace status packets found");
             }
             return;
