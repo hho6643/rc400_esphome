@@ -8,7 +8,7 @@
 namespace rc400 {
 
 using Address = std::array<uint8_t, 4>;
-inline constexpr Address kRemoteAddress{{0x00, 0x00, 0xA1, 0xAF}};  // original: {0x00, 0x00, 0xA1, 0xAF}
+inline constexpr Address kRemoteAddress{{0x00, 0x00, 0xA1, 0xAF}};  
 inline constexpr Address kFireplaceAddress{{0x15, 0x57, 0xFE, 0xBD}};
 inline constexpr Address kBroadcastAddress{{0xFF, 0xFF, 0xFF, 0xFF}};
 inline constexpr size_t kPacketLength = 25;
