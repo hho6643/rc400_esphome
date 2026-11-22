@@ -1,6 +1,8 @@
 substitutions:
   # Override in your main YAML or point at an HA template sensor.
   rc400_external_temperature_entity: sensor.rc400_external_temperature
+  rc400_frequency: 913.2MHz
+
 
 esphome:
   name: rc400-receiver
@@ -54,7 +56,7 @@ sx126x:
     tcxo_delay: 5ms
   
     modulation: FSK
-    frequency: 913.2MHz
+    frequency: ${rc400_frequency}
     bitrate: 25000
     deviation: 50kHz
     bandwidth: 234_3kHz
