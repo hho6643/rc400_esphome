@@ -611,11 +611,11 @@ script:
 
                         return rc400::build_command(command, value, minute);
                   - delay: 60ms
-                else:
-                  - logger.log:
-                      level: WARN
-                      format: "RC400: Invalid command 0x%02X, value %d"
-                      args: ['command', 'value']
+                  else:
+                    - logger.log:
+                        level: WARN
+                        format: "RC400: Invalid command 0x%02X, value %d"
+                        args: ['command', 'value']
 
 interval:
   - interval: 5s
