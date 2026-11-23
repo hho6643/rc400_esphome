@@ -121,17 +121,13 @@ For example:
 ```yaml
 substitutions:
   rc400_frequency: "913.2MHz"
-  rc400_frequency_hz: "913200000"
   rc400_remote_address: "00 00 A1 AF"
   rc400_fireplace_address: "15 57 FE BD"
 ```
 
 **Important:** These values are examples from one fireplace installation. Replace them with the values discovered for your own equipment.
 
-Both frequency substitutions must represent the same frequency:
-
 - `rc400_frequency` uses ESPHome frequency notation, such as `913.2MHz`.
-- `rc400_frequency_hz` uses the equivalent frequency in Hertz, such as `913200000`.
 
 The addresses must contain exactly four hexadecimal bytes separated by spaces, for example `12 34 AB CD`.
 

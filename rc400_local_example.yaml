@@ -6,7 +6,6 @@ esphome:
 # substitutions:
 #  rc400_external_temperature_entity: sensor.rc400_external_temperature
 #  rc400_frequency: "913.2MHz"
-#  rc400_frequency_hz: "913200000"
 #  rc400_remote_address: "00 00 A1 AF"
 #  rc400_fireplace_address: "15 57 FE BD"
 
