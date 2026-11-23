@@ -1,3 +1,4 @@
+# This is the device specific config for the Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064)
 
 esp32:
   board: seeed_xiao_esp32s3
@@ -24,7 +25,6 @@ sx126x:
 
 switch:  
   - platform: gpio
-    # needed this for the antenna switch to work on the Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064)
     name: "SX1262 Antenna Switch"
     id: sx1262_antenna_switch
     pin: GPIO38

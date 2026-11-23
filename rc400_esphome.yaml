@@ -717,8 +717,6 @@ binary_sensor:
     id: rc400_fan_running
     icon: mdi:fan
 
-
-
 climate:
   - platform: template
     name: "Fireplace Thermostat"

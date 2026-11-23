@@ -18,6 +18,7 @@ packages:
     ref: main
     files:
       - rc400_esphome.yaml
+      - boards/xiao_esp32_sx1262.yaml
     refresh: 1hr
 
 
