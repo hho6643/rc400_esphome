@@ -37,7 +37,9 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 * ChatGPT -> Figuring out the messages from the remote, most of the coding
 
 # What is needed
-Almost certainly, this won't work exactly as is for another fireplace/remote combo.  The manuals say the remote needs to pair with the fireplace, and that the pairing is unique.  That's also the case with the RC300 remotes.  For those remotes, having a couple examples of different remotes routine transmissions made it possible to figure out the algorithm by which the remote pairing is unique.  Since I only have the 1 fireplace & 1 remote, I can't do that.  It is *possible* that the only thing needed for the pairing is a channel match & learning the addresses used by the remote & the fireplace during broadcasts.  There is a "seek" diagnostic function that, with luck, will find those values for you.  You'll need to update the YAML variables with what it finds, rebuild in ESPHome Device Builder, and see if everything works.  Let me know!
+Almost certainly, this won't work exactly as is for another fireplace/remote combo.  The manuals say the remote needs to pair with the fireplace, and that the pairing is unique.  That's also the case with the RC300 remotes.  For those remotes, having a couple examples of different remotes routine transmissions made it possible to figure out the algorithm by which the remote pairing is unique.  Since I only have the 1 fireplace & 1 remote, I can't do that.  
+
+It is *possible* that the only thing needed for the pairing is a channel match & learning the addresses used by the remote & the fireplace during broadcasts.  There is a "seek" diagnostic function that, with luck, will find those values for you.  You'll need to update the YAML variables with what it finds, rebuild in ESPHome Device Builder, and see if everything works.  Let me know!
 
 ## 🔍 Seek Mode — Discover Your Fireplace's RF Settings
 
@@ -140,6 +142,7 @@ The integration will then use your configured frequency and addresses for normal
 - `rc400_esphome.yaml`: RC400 radio parameters, packet handler, sensors, controls, state machine, and automations. 
 - `rc400_protocol.h`, `rc400_state.h`: header files that handle transmission, state decoding, etc
 - `rc400_local_example.yaml`: example **local** main ESPHome configuration. 
+- `boards\xiao_esp32_sx1262.yaml`: board-specific configuration for XIAO ESP32S3 & Wio-SX1262 Kit.  If somebody else has a new kit, we can add it in.
 
 # RC400 RF Protocol — Reverse Engineering Notes (from ChatGPT)
 
