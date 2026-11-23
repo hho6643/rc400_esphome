@@ -5,7 +5,6 @@ substitutions:
   rc400_remote_address: "00 00 A1 AF"
   rc400_fireplace_address: "15 57 FE BD"
 
-
 esphome:
   name: rc400-receiver
   friendly_name: RC400 Receiver
@@ -383,6 +382,11 @@ globals:
     restore_value: no
     initial_value: '"${rc400_fireplace_address}"'
 
+  - id: rc400_external_temperature_raw
+    type: float
+    restore_value: no
+    initial_value: 'NAN'
+
 
 time:
   - platform: homeassistant
@@ -610,14 +614,12 @@ sensor:
     id: rc400_external_temperature
     entity_id: ${rc400_external_temperature_entity}
     internal: true
-    on_value:
+
+    on_raw_value:
       then:
         - lambda: |-
-            if (id(rc400_temperature_source).current_option() == "External Sensor" &&
-                !isnan(x) &&
-                (!id(rc400_room_temperature).has_state() ||
-                 id(rc400_room_temperature).state != x))
-              id(rc400_room_temperature).publish_state(x);
+            id(rc400_external_temperature_raw) = x;
+        - script.execute: rc400_update_external_temperature
 
   - platform: template
     name: "Room Temperature"
@@ -705,7 +707,6 @@ binary_sensor:
     id: rc400_timer_is_set
     icon: mdi:timer-check
 
-
   - platform: template
     name: "Receiving Broadcasts"
     id: rc400_receiving
@@ -719,6 +720,16 @@ binary_sensor:
     name: "Fan Running"
     id: rc400_fan_running
     icon: mdi:fan
+
+  - platform: homeassistant
+    id: rc400_external_temperature_unit
+    entity_id: ${rc400_external_temperature_entity}
+    attribute: unit_of_measurement
+    internal: true
+
+    on_value:
+      then:
+        - script.execute: rc400_update_external_temperature
 
 climate:
   - platform: template
@@ -838,6 +849,39 @@ script:
                 format: "RC400: Command 0x%02X, value %d invalid or blocked during Seek"
                 args: ['command', 'value']
 
+
+  - id: rc400_update_external_temperature
+    mode: restart
+    then:
+      - lambda: |-
+          if (!id(rc400_external_temperature_unit).has_state())
+            return;
+
+          float temperature = id(rc400_external_temperature_raw);
+
+          if (!std::isfinite(temperature))
+            return;
+
+          const auto &unit = id(rc400_external_temperature_unit).state;
+
+          if (unit == "°F" || unit == "F") {
+            temperature = (temperature - 32.0f) * (5.0f / 9.0f);
+          } else if (unit == "°C" || unit == "C") {
+            // Already Celsius.
+          } else {
+            ESP_LOGW("rc400_temp",
+                     "Unsupported temperature unit: %s",
+                     unit.c_str());
+            return;
+          }
+
+          // Store the normalized Celsius value.
+          id(rc400_external_temperature).publish_state(temperature);
+
+          if (id(rc400_temperature_source).current_option() == "External Sensor") {
+            id(rc400_room_temperature).publish_state(temperature);
+          }
+
 interval:
   - interval: 100ms
     then:
@@ -928,7 +972,6 @@ interval:
             id(rc400_fan_cooldown_complete) = false;
 
           }
-
 
   # The physical RC400 reports room temperature by RF. Only send our
   # substitute report when the external source is selected.
