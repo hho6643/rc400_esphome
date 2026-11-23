@@ -901,6 +901,11 @@ script:
 
           if (id(rc400_temperature_source).current_option() == "External Sensor") {
             id(rc400_room_temperature).publish_state(temperature);
+            ESP_LOGI("rc400_temp",
+                    "ROOM SENSOR: %.2f C | Climate current: %.2f C | Source: %s",
+                    id(rc400_room_temperature).state,
+                    id(rc400_climate).current_temperature,
+                    id(rc400_temperature_source).current_option().c_str());
           }
 
 interval:
