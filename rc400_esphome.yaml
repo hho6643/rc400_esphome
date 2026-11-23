@@ -2,7 +2,6 @@ substitutions:
   # Override in your main YAML or point at an HA template sensor.
   rc400_external_temperature_entity: sensor.rc400_external_temperature
   rc400_frequency: "913.2MHz"
-  rc400_frequency_hz: "913200000"
   rc400_remote_address: "00 00 A1 AF"
   rc400_fireplace_address: "15 57 FE BD"
 
@@ -132,7 +131,7 @@ sx126x:
                   if (id(rc400_seek_phase) == 2) {
                     id(rc400_seek_active) = false;
                     id(rc400_seek_phase) = 0;
-                    id(sx126x_1)->set_frequency(static_cast<uint32_t>(${rc400_frequency_hz}));
+                    id(sx126x_1)->set_frequency(rc400::frequency_hz("${rc400_frequency}"));
                     id(sx126x_1)->configure();
                     id(sx126x_1)->set_mode_rx();
                     id(rc400_seek_status).publish_state("Complete - remote found");
@@ -437,7 +436,7 @@ button:
             - lambda: |-
                 id(rc400_seek_active) = false;
                 id(rc400_seek_phase) = 0;
-                id(sx126x_1)->set_frequency(static_cast<uint32_t>(${rc400_frequency_hz}));
+                id(sx126x_1)->set_frequency(rc400::frequency_hz("${rc400_frequency}"));
                 id(sx126x_1)->configure();
                 id(sx126x_1)->set_mode_rx();
                 id(rc400_seek_status).publish_state("Cancelled");
@@ -849,7 +848,7 @@ interval:
             if (elapsed < 60000U) return;
             id(rc400_seek_active) = false;
             id(rc400_seek_phase) = 0;
-            id(sx126x_1)->set_frequency(static_cast<uint32_t>(${rc400_frequency_hz}));
+            id(sx126x_1)->set_frequency(rc400::frequency_hz("${rc400_frequency}"));
             id(sx126x_1)->configure();
             id(sx126x_1)->set_mode_rx();
             id(rc400_seek_status).publish_state("Complete - remote not discovered");
@@ -862,7 +861,7 @@ interval:
                 !id(rc400_seek_remote_addr).empty()) {
               id(rc400_seek_active) = false;
               id(rc400_seek_phase) = 0;
-              id(sx126x_1)->set_frequency(static_cast<uint32_t>(${rc400_frequency_hz}));
+              id(sx126x_1)->set_frequency(rc400::frequency_hz("${rc400_frequency}"));
               id(sx126x_1)->configure();
               id(sx126x_1)->set_mode_rx();
               id(rc400_seek_status).publish_state("Complete - remote found");
@@ -880,7 +879,7 @@ interval:
             } else {
               id(rc400_seek_active) = false;
               id(rc400_seek_phase) = 0;
-              id(sx126x_1)->set_frequency(static_cast<uint32_t>(${rc400_frequency_hz}));
+              id(sx126x_1)->set_frequency(rc400::frequency_hz("${rc400_frequency}"));
               id(sx126x_1)->configure();
               id(sx126x_1)->set_mode_rx();
               id(rc400_seek_status).publish_state("Complete - no fireplace found");
