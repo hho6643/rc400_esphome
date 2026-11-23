@@ -872,7 +872,7 @@ script:
               ? id(rc400_external_temperature_unit).state
               : "(unavailable)";
 
-          ESP_LOGI("rc400_temp",
+          ESP_LOGD("rc400_temp",
                    "INPUT: raw=%.2f, unit='%s'",
                    raw, unit.c_str());
 
@@ -892,20 +892,21 @@ script:
             return;
           }
 
-          ESP_LOGI("rc400_temp",
+          ESP_LOGD("rc400_temp",
                    "OUTPUT: %.2f C (%.2f F)",
                    temperature,
                    temperature * 1.8f + 32.0f);
 
           id(rc400_external_temperature).publish_state(temperature);
 
+          ESP_LOGD("rc400_temp",
+                  "ROOM SENSOR: %.2f C | Climate current: %.2f C | Source: %s",
+                  id(rc400_room_temperature).state,
+                  id(rc400_climate).current_temperature,
+                  id(rc400_temperature_source).current_option().c_str());
+
           if (id(rc400_temperature_source).current_option() == "External Sensor") {
             id(rc400_room_temperature).publish_state(temperature);
-            ESP_LOGI("rc400_temp",
-                    "ROOM SENSOR: %.2f C | Climate current: %.2f C | Source: %s",
-                    id(rc400_room_temperature).state,
-                    id(rc400_climate).current_temperature,
-                    id(rc400_temperature_source).current_option().c_str());
           }
 
 interval:
