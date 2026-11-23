@@ -691,6 +691,16 @@ text_sensor:
     id: rc400_seek_remote_address
     entity_category: diagnostic
 
+  - platform: homeassistant
+    id: rc400_external_temperature_unit
+    entity_id: ${rc400_external_temperature_entity}
+    attribute: unit_of_measurement
+    internal: true
+
+    on_value:
+      then:
+        - script.execute: rc400_update_external_temperature
+
 binary_sensor:
   - platform: template
     name: "Fireplace Status"
@@ -721,15 +731,7 @@ binary_sensor:
     id: rc400_fan_running
     icon: mdi:fan
 
-  - platform: homeassistant
-    id: rc400_external_temperature_unit
-    entity_id: ${rc400_external_temperature_entity}
-    attribute: unit_of_measurement
-    internal: true
 
-    on_value:
-      then:
-        - script.execute: rc400_update_external_temperature
 
 climate:
   - platform: template
