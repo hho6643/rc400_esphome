@@ -256,14 +256,6 @@ sx126x:
 # Home Assistant package configuration for the RC400 ESPHome integration.
 
 switch:  
-  - platform: gpio
-    # needed this for the antenna switch to work on the Seeed Studio XIAO ESP32-S3 + Wio-SX1262 Kit (SKU 113110064)
-    name: "SX1262 Antenna Switch"
-    id: sx1262_antenna_switch
-    pin: GPIO38
-    restore_mode: ALWAYS_ON
-    internal: true
-
   - platform: template
     name: "Cold Climate Pilot Control"
     id: rc400_cold_climate_control
