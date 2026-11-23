@@ -610,16 +610,26 @@ sensor:
     accuracy_decimals: 1
 
   # Read a Home Assistant entity (or a template combining multiple sensors).
+  # Raw temperature received from Home Assistant.
   - platform: homeassistant
-    id: rc400_external_temperature
+    id: rc400_external_temperature_input
     entity_id: ${rc400_external_temperature_entity}
     internal: true
 
-    on_raw_value:
+    on_value:
       then:
         - lambda: |-
             id(rc400_external_temperature_raw) = x;
         - script.execute: rc400_update_external_temperature
+
+  # Normalized external temperature, always Celsius.
+  - platform: template
+    id: rc400_external_temperature
+    internal: true
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    update_interval: never
 
   - platform: template
     name: "Room Temperature"
@@ -856,28 +866,37 @@ script:
     mode: restart
     then:
       - lambda: |-
-          if (!id(rc400_external_temperature_unit).has_state())
+          const float raw = id(rc400_external_temperature_raw);
+          const bool has_unit = id(rc400_external_temperature_unit).has_state();
+          const std::string unit = has_unit
+              ? id(rc400_external_temperature_unit).state
+              : "(unavailable)";
+
+          ESP_LOGI("rc400_temp",
+                   "INPUT: raw=%.2f, unit='%s'",
+                   raw, unit.c_str());
+
+          if (!has_unit || !std::isfinite(raw))
             return;
 
-          float temperature = id(rc400_external_temperature_raw);
-
-          if (!std::isfinite(temperature))
-            return;
-
-          const auto &unit = id(rc400_external_temperature_unit).state;
+          float temperature;
 
           if (unit == "°F" || unit == "F") {
-            temperature = (temperature - 32.0f) * (5.0f / 9.0f);
+            temperature = (raw - 32.0f) * (5.0f / 9.0f);
           } else if (unit == "°C" || unit == "C") {
-            // Already Celsius.
+            temperature = raw;
           } else {
             ESP_LOGW("rc400_temp",
-                     "Unsupported temperature unit: %s",
+                     "Unsupported temperature unit: '%s'",
                      unit.c_str());
             return;
           }
 
-          // Store the normalized Celsius value.
+          ESP_LOGI("rc400_temp",
+                   "OUTPUT: %.2f C (%.2f F)",
+                   temperature,
+                   temperature * 1.8f + 32.0f);
+
           id(rc400_external_temperature).publish_state(temperature);
 
           if (id(rc400_temperature_source).current_option() == "External Sensor") {
