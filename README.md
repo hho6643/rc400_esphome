@@ -37,7 +37,7 @@ RC400 Intellifire Fireplace remote control replacement through Home Assistant / 
 * ChatGPT -> Figuring out the messages from the remote, most of the coding
 
 # What is needed
-Almost certainly, this won't work exactly as is for another fireplace/remote combo.  The manuals say the remote needs to pair with the fireplace, and that the pairing is unique.  That's also the case with the RC300 remotes.  For those remotes, having a couple examples of different remotes routine transmissions made it possible to figure out the algorithm by which the remote pairing is unique.  Since I only have the 1 fireplace & 1 remote, I can't do that.  Any contributors who can provide some captures from their own systems would be welcome.
+Almost certainly, this won't work exactly as is for another fireplace/remote combo.  The manuals say the remote needs to pair with the fireplace, and that the pairing is unique.  That's also the case with the RC300 remotes.  For those remotes, having a couple examples of different remotes routine transmissions made it possible to figure out the algorithm by which the remote pairing is unique.  Since I only have the 1 fireplace & 1 remote, I can't do that.  It is *possible* that the only thing needed for the pairing is a channel match & learning the addresses used by the remote & the fireplace during broadcasts.  There is a "seek" diagnostic function that, with luck, will find those values for you.  You'll need to update the YAML variables with what it finds, rebuild in ESPHome Device Builder, and see if everything works.  Let me know!
 
 
 # File Layout
