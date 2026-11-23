@@ -387,22 +387,105 @@ This checksum detects many transmission errors, but it is **not a cryptographic 
 - Whether the fireplace sends a separate acknowledgment packet.
 - Whether different firmware versions use additional packet formats.
 
-## 8. Planned Protocol Discovery — Seek Mode
+## 🔍 Seek Mode — Discover Your Fireplace's RF Settings
 
-A future feature of this project is **RC400 Seek Mode**, intended to help other users discover their own fireplace's RF settings and device addresses.
+The RC400 integration includes a **experimental** **Seek Mode** that automatically scans for your fireplace's RF frequency and discovers the unique addresses used by your fireplace and its paired RC400 remote.  This depends on the same sync word being used for all fireplace & remote transmissions, and the only thing changing between fireplace & remote pairings are the individual addresses of both devices.  
 
-The proposed discovery process is:
+This makes it possible to configure the integration for your own fireplace without manually capturing or decoding RF transmissions.
 
-1. Scan candidate RF frequencies.
-2. Detect packets using the known RC400 framing and checksum.
-3. Identify fireplace status broadcasts without requiring preconfigured addresses.
-4. Capture a physical remote command to discover the remote source address and fireplace destination address.
-5. Correlate remote commands with fireplace broadcasts.
-6. Report the candidate frequency and addresses for user verification.
+### What Seek Mode discovers
 
-Seek Mode will initially be receive-only. Discovered addresses will not automatically replace the configured pairing.
+Seek Mode identifies three settings needed for normal operation:
 
-This is intended to make the project usable with other RC400 remote/fireplace pairs without requiring users to perform their own SDR packet analysis.
+| Setting | Description |
+|---|---|
+| **RF Frequency** | The radio frequency used by your fireplace |
+| **Fireplace Address** | The unique 4-byte address identifying your fireplace |
+| **Remote Address** | The unique 4-byte address of your paired RC400 remote |
+
+### How to use Seek Mode
+
+**1. Power on your ESPHome device**
+
+Install the RC400 integration and connect the ESP32/SX1262 hardware to Home Assistant.
+
+Seek Mode can run using the initial configuration values. You do not need to know your fireplace's addresses beforehand.
+
+**2. Start the scan**
+
+In Home Assistant, find the **RC400 Start Seek** button and press it.
+
+The integration will begin scanning all 30 RF channels, from **912.2 MHz to 918.0 MHz**, listening for valid RC400 fireplace broadcasts.
+
+Each channel is monitored for approximately 5 seconds, so a complete scan takes about **2½ minutes**.
+
+During the scan:
+
+- The radio operates in receive-only mode.
+- No RC400 commands are transmitted by the integration.
+- Normal fireplace monitoring and control are temporarily suspended.
+- The **RC400 Seek Status** entity displays the current progress.
+
+**3. Discover the remote address**
+
+Once the frequency scan finishes and a fireplace has been detected, the status changes to:
+
+`Waiting for remote - press a button`
+
+At this point, **press a button on your physical RC400 remote**.
+
+The integration listens on the discovered fireplace frequency and identifies remote transmissions addressed to that fireplace.
+
+You have approximately **60 seconds** to press a button.
+
+**4. Review the results**
+
+The discovered settings are available through these Home Assistant entities:
+
+| Home Assistant entity | Information |
+|---|---|
+| RC400 Seek Status | Current scan progress or completion status |
+| RC400 Seek Channel | Discovered RF channel |
+| RC400 Seek Frequency | Discovered frequency in MHz |
+| RC400 Seek Fireplace Address | Discovered fireplace address |
+| RC400 Seek Remote Address | Discovered remote address |
+
+A successful scan ends with:
+
+`Complete - remote found`
+
+If no remote is detected within the waiting period, the scan ends with:
+
+`Complete - remote not discovered`
+
+The fireplace frequency and address may still have been discovered successfully.
+
+### Configure the discovered settings
+
+Copy the discovered frequency and addresses into the `substitutions:` section of your ESPHome YAML configuration.
+
+For example:
+
+```yaml
+substitutions:
+  rc400_frequency: "913.2MHz"
+  rc400_frequency_hz: "913200000"
+  rc400_remote_address: "00 00 A1 AF"
+  rc400_fireplace_address: "15 57 FE BD"
+```
+
+**Important:** These values are examples from one fireplace installation. Replace them with the values discovered for your own equipment.
+
+Both frequency substitutions must represent the same frequency:
+
+- `rc400_frequency` uses ESPHome frequency notation, such as `913.2MHz`.
+- `rc400_frequency_hz` uses the equivalent frequency in Hertz, such as `913200000`.
+
+The addresses must contain exactly four hexadecimal bytes separated by spaces, for example `12 34 AB CD`.
+
+After updating the substitutions, **recompile and upload the ESPHome firmware**.
+
+The integration will then use your configured frequency and addresses for normal reception and command transmission.
 
 ---
 
